@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2025-01-23)
 
 ## Current Position
 
-Phase: 3 of 6 (RSI Calculation)
+Phase: 4 of 6 (Core Visualization)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-01-23 — Completed 03-01-PLAN.md
+Last activity: 2026-01-23 — Completed 04-01-PLAN.md
 
-Progress: █████░░░░░ 50%
+Progress: ███████░░░ 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 3 min
-- Total execution time: 0.15 hours
+- Total plans completed: 4
+- Average duration: 2.5 min
+- Total execution time: 0.17 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: █████░░░░░ 50%
 | 1. Foundation | 1 | 4 min | 4 min |
 | 2. CoinGecko Integration | 1 | 2 min | 2 min |
 | 3. RSI Calculation | 1 | 3 min | 3 min |
+| 4. Core Visualization | 1 | 1 min | 1 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (4 min), 02-01 (2 min), 03-01 (3 min)
-- Trend: stable
+- Last 5 plans: 01-01 (4 min), 02-01 (2 min), 03-01 (3 min), 04-01 (1 min)
+- Trend: improving
 
 ## Accumulated Context
 
@@ -49,6 +50,9 @@ Recent decisions affecting current work:
 - Pure Python RSI (no pandas) for minimal dependencies
 - Wilder's smoothed RSI formula (standard 14-period)
 - ISO week boundaries for weekly RSI aggregation
+- RdYlGn_r colorscale for weekly RSI (red=high, green=low)
+- Log scale Y-axis for vol/mcap ratio
+- Session state pattern for Streamlit data persistence
 
 ### Deferred Issues
 
@@ -61,5 +65,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 03-01-PLAN.md (Phase 3 complete)
+Stopped at: Completed 04-01-PLAN.md (Phase 4 complete)
 Resume file: None
