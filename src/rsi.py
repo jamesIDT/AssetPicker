@@ -71,3 +71,42 @@ def get_daily_rsi(market_chart: dict, period: int = 14) -> float | None:
     """
     closes = extract_closes(market_chart)
     return calculate_rsi(closes, period)
+
+
+def get_weekly_rsi(market_chart: dict, period: int = 14) -> float | None:
+    """
+    Calculate weekly RSI from CoinGecko daily market_chart data.
+
+    Aggregates daily data to weekly closes (last close of each ISO week),
+    then calculates RSI on the weekly data.
+
+    Args:
+        market_chart: CoinGecko market_chart response with daily data
+        period: RSI period (default: 14)
+
+    Returns:
+        RSI value (0-100) or None if insufficient weekly data (need period+1 weeks)
+    """
+    prices = market_chart.get("prices", [])
+    if not prices:
+        return None
+
+    # Group by ISO week (year, week_number)
+    weekly_closes: dict[tuple[int, int], float] = {}
+
+    for timestamp_ms, price in prices:
+        dt = datetime.fromtimestamp(timestamp_ms / 1000)
+        iso = dt.isocalendar()
+        week_key = (iso.year, iso.week)
+        # Keep the most recent price for each week (dict overwrites)
+        weekly_closes[week_key] = price
+
+    # Sort by week and extract closes
+    sorted_weeks = sorted(weekly_closes.keys())
+    closes = [weekly_closes[week] for week in sorted_weeks]
+
+    # Need at least period + 1 weekly data points
+    if len(closes) < period + 1:
+        return None
+
+    return calculate_rsi(closes, period)
