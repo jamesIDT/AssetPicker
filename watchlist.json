@@ -1,0 +1,14 @@
+{
+  "coins": [
+    {"id": "bitcoin", "symbol": "BTC"},
+    {"id": "ethereum", "symbol": "ETH"},
+    {"id": "solana", "symbol": "SOL"},
+    {"id": "cardano", "symbol": "ADA"},
+    {"id": "avalanche-2", "symbol": "AVAX"},
+    {"id": "polkadot", "symbol": "DOT"},
+    {"id": "chainlink", "symbol": "LINK"},
+    {"id": "polygon", "symbol": "MATIC"},
+    {"id": "uniswap", "symbol": "UNI"},
+    {"id": "aave", "symbol": "AAVE"}
+  ]
+}
