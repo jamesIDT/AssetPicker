@@ -95,12 +95,13 @@ coin_ids = [c["id"] for c in watchlist]
 
 # Refresh button
 if st.button("Refresh Data"):
-    try:
-        data = asyncio.run(fetch_all_data(coin_ids))
-        st.session_state.coin_data = data
-        st.session_state.last_updated = datetime.now()
-    except Exception as e:
-        st.error(f"Failed to fetch data: {e}")
+    with st.spinner("Fetching data from CoinGecko..."):
+        try:
+            data = asyncio.run(fetch_all_data(coin_ids))
+            st.session_state.coin_data = data
+            st.session_state.last_updated = datetime.now()
+        except Exception as e:
+            st.error(f"Failed to fetch data: {e}")
 
 # Display chart or message
 if st.session_state.coin_data is not None:
