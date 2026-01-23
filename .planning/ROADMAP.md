@@ -18,7 +18,7 @@ None
 - [x] **Phase 2: CoinGecko Integration** - API client with market data and OHLC fetching ✓
 - [x] **Phase 3: RSI Calculation** - 14-period RSI algorithm for daily and weekly timeframes ✓
 - [x] **Phase 4: Core Visualization** - Plotly scatter plot with RSI/liquidity encodings ✓
-- [ ] **Phase 5: Interaction & Lists** - Tooltips, zone shading, opportunity/caution lists
+- [x] **Phase 5: Interaction & Lists** - Tooltips, zone shading, opportunity/caution lists ✓
 - [ ] **Phase 6: Polish** - Refresh UI, loading states, error handling
 
 ## Phase Details
@@ -119,5 +119,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. CoinGecko Integration | 1/1 | Complete | 2026-01-23 |
 | 3. RSI Calculation | 1/1 | Complete | 2026-01-23 |
 | 4. Core Visualization | 1/1 | Complete | 2026-01-23 |
-| 5. Interaction & Lists | 0/TBD | Not started | - |
+| 5. Interaction & Lists | 1/1 | Complete | 2026-01-23 |
 | 6. Polish | 0/TBD | Not started | - |
