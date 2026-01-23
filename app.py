@@ -31,7 +31,7 @@ def load_watchlist() -> list[dict]:
     return data.get("coins", [])
 
 
-async def fetch_all_data(coin_ids: list[str]) -> list[dict]:
+async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
     """
     Fetch market data and calculate RSI for all coins.
 
@@ -39,7 +39,7 @@ async def fetch_all_data(coin_ids: list[str]) -> list[dict]:
         coin_ids: List of CoinGecko coin IDs
 
     Returns:
-        List of coin data dicts ready for charting
+        Tuple of (coin data list, failed count)
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
@@ -50,8 +50,11 @@ async def fetch_all_data(coin_ids: list[str]) -> list[dict]:
     market_lookup = {c["id"]: c for c in market_data}
 
     result = []
+    failed_count = 0
+
     for coin_id in coin_ids:
         if coin_id not in market_lookup or coin_id not in history:
+            failed_count += 1
             continue
 
         market = market_lookup[coin_id]
@@ -63,6 +66,7 @@ async def fetch_all_data(coin_ids: list[str]) -> list[dict]:
 
         # Skip if RSI couldn't be calculated
         if daily_rsi is None or weekly_rsi is None:
+            failed_count += 1
             continue
 
         # Calculate vol/mcap ratio
@@ -83,23 +87,33 @@ async def fetch_all_data(coin_ids: list[str]) -> list[dict]:
             }
         )
 
-    return result
+    return result, failed_count
 
 
 # Main UI
 st.title("Crypto RSI Screener")
 
-# Load watchlist
-watchlist = load_watchlist()
+# Load watchlist with error handling
+try:
+    watchlist = load_watchlist()
+except FileNotFoundError:
+    st.error("watchlist.json not found. Create it with a 'coins' array.")
+    st.stop()
+except json.JSONDecodeError as e:
+    st.error(f"Invalid JSON in watchlist.json: {e}")
+    st.stop()
+
 coin_ids = [c["id"] for c in watchlist]
 
 # Refresh button
 if st.button("Refresh Data"):
     with st.spinner("Fetching data from CoinGecko..."):
         try:
-            data = asyncio.run(fetch_all_data(coin_ids))
+            data, failed_count = asyncio.run(fetch_all_data(coin_ids))
             st.session_state.coin_data = data
             st.session_state.last_updated = datetime.now()
+            if failed_count > 0:
+                st.warning(f"Could not fetch data for {failed_count} coin(s)")
         except Exception as e:
             st.error(f"Failed to fetch data: {e}")
 
