@@ -14,8 +14,8 @@ None
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Foundation** - Project structure, dependencies, config files
-- [ ] **Phase 2: CoinGecko Integration** - API client with market data and OHLC fetching
+- [x] **Phase 1: Foundation** - Project structure, dependencies, config files ✓
+- [x] **Phase 2: CoinGecko Integration** - API client with market data and OHLC fetching ✓
 - [ ] **Phase 3: RSI Calculation** - 14-period RSI algorithm for daily and weekly timeframes
 - [ ] **Phase 4: Core Visualization** - Plotly scatter plot with RSI/liquidity encodings
 - [ ] **Phase 5: Interaction & Lists** - Tooltips, zone shading, opportunity/caution lists
@@ -115,8 +115,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
-| 2. CoinGecko Integration | 0/TBD | Not started | - |
+| 1. Foundation | 1/1 | Complete | 2026-01-23 |
+| 2. CoinGecko Integration | 1/1 | Complete | 2026-01-23 |
 | 3. RSI Calculation | 0/TBD | Not started | - |
 | 4. Core Visualization | 0/TBD | Not started | - |
 | 5. Interaction & Lists | 0/TBD | Not started | - |
