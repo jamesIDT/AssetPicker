@@ -109,5 +109,42 @@ if st.session_state.coin_data is not None:
 
     if st.session_state.last_updated:
         st.text(f"Last updated: {st.session_state.last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Opportunity and Caution lists
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("🟢 Potential Opportunities")
+        opportunities = [
+            c for c in st.session_state.coin_data if c["daily_rsi"] < 30
+        ]
+        opportunities.sort(key=lambda c: c["daily_rsi"])  # Most oversold first
+
+        if opportunities:
+            for coin in opportunities:
+                star = " ⭐" if coin["weekly_rsi"] < 30 else ""
+                st.write(
+                    f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
+                    f"Weekly: {coin['weekly_rsi']:.1f}{star}"
+                )
+        else:
+            st.write("None currently")
+
+    with col2:
+        st.subheader("🔴 Exercise Caution")
+        caution = [
+            c for c in st.session_state.coin_data if c["daily_rsi"] > 70
+        ]
+        caution.sort(key=lambda c: c["daily_rsi"], reverse=True)  # Most overbought first
+
+        if caution:
+            for coin in caution:
+                star = " ⭐" if coin["weekly_rsi"] > 70 else ""
+                st.write(
+                    f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
+                    f"Weekly: {coin['weekly_rsi']:.1f}{star}"
+                )
+        else:
+            st.write("None currently")
 else:
     st.info("Click Refresh to load data")
