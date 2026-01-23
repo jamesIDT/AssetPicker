@@ -42,3 +42,32 @@ def calculate_rsi(closes: list[float], period: int = 14) -> float | None:
     rsi = 100 - (100 / (1 + rs))
 
     return rsi
+
+
+def extract_closes(market_chart: dict) -> list[float]:
+    """
+    Extract closing prices from CoinGecko market_chart response.
+
+    Args:
+        market_chart: Dict with 'prices' key containing [[timestamp_ms, price], ...]
+
+    Returns:
+        List of closing prices (oldest to newest)
+    """
+    prices = market_chart.get("prices", [])
+    return [price for _, price in prices]
+
+
+def get_daily_rsi(market_chart: dict, period: int = 14) -> float | None:
+    """
+    Calculate daily RSI from CoinGecko market_chart data.
+
+    Args:
+        market_chart: CoinGecko market_chart response (from get_coin_market_chart)
+        period: RSI period (default: 14)
+
+    Returns:
+        RSI value (0-100) or None if insufficient data
+    """
+    closes = extract_closes(market_chart)
+    return calculate_rsi(closes, period)
