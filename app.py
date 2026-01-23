@@ -91,7 +91,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
 
 
 # Main UI
-st.title("Crypto RSI Screener")
+st.title(f"Crypto RSI Screener")
+st.caption("Data from CoinGecko Pro API")
 
 # Load watchlist with error handling
 try:
@@ -119,47 +120,52 @@ if st.button("Refresh Data"):
 
 # Display chart or message
 if st.session_state.coin_data is not None:
-    fig = build_rsi_scatter(st.session_state.coin_data)
-    st.plotly_chart(fig, use_container_width=True)
-
+    # Show timestamp above chart
     if st.session_state.last_updated:
-        st.text(f"Last updated: {st.session_state.last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+        st.caption(f"Last updated: {st.session_state.last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Opportunity and Caution lists
-    col1, col2 = st.columns(2)
+    # Handle empty data gracefully
+    if not st.session_state.coin_data:
+        st.warning("No valid coin data available. Check your watchlist configuration.")
+    else:
+        fig = build_rsi_scatter(st.session_state.coin_data)
+        st.plotly_chart(fig, use_container_width=True)
 
-    with col1:
-        st.subheader("🟢 Potential Opportunities")
-        opportunities = [
-            c for c in st.session_state.coin_data if c["daily_rsi"] < 30
-        ]
-        opportunities.sort(key=lambda c: c["daily_rsi"])  # Most oversold first
+        # Opportunity and Caution lists
+        col1, col2 = st.columns(2)
 
-        if opportunities:
-            for coin in opportunities:
-                star = " ⭐" if coin["weekly_rsi"] < 30 else ""
-                st.write(
-                    f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
-                    f"Weekly: {coin['weekly_rsi']:.1f}{star}"
-                )
-        else:
-            st.write("None currently")
+        with col1:
+            opportunities = [
+                c for c in st.session_state.coin_data if c["daily_rsi"] < 30
+            ]
+            opportunities.sort(key=lambda c: c["daily_rsi"])  # Most oversold first
+            st.subheader(f"🟢 Potential Opportunities ({len(opportunities)})")
 
-    with col2:
-        st.subheader("🔴 Exercise Caution")
-        caution = [
-            c for c in st.session_state.coin_data if c["daily_rsi"] > 70
-        ]
-        caution.sort(key=lambda c: c["daily_rsi"], reverse=True)  # Most overbought first
+            if opportunities:
+                for coin in opportunities:
+                    star = " ⭐" if coin["weekly_rsi"] < 30 else ""
+                    st.write(
+                        f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
+                        f"Weekly: {coin['weekly_rsi']:.1f}{star}"
+                    )
+            else:
+                st.write("None currently")
 
-        if caution:
-            for coin in caution:
-                star = " ⭐" if coin["weekly_rsi"] > 70 else ""
-                st.write(
-                    f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
-                    f"Weekly: {coin['weekly_rsi']:.1f}{star}"
-                )
-        else:
-            st.write("None currently")
+        with col2:
+            caution = [
+                c for c in st.session_state.coin_data if c["daily_rsi"] > 70
+            ]
+            caution.sort(key=lambda c: c["daily_rsi"], reverse=True)  # Most overbought first
+            st.subheader(f"🔴 Exercise Caution ({len(caution)})")
+
+            if caution:
+                for coin in caution:
+                    star = " ⭐" if coin["weekly_rsi"] > 70 else ""
+                    st.write(
+                        f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
+                        f"Weekly: {coin['weekly_rsi']:.1f}{star}"
+                    )
+            else:
+                st.write("None currently")
 else:
     st.info("Click Refresh to load data")
