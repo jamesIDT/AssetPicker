@@ -402,6 +402,33 @@ def build_rsi_scatter(
             )
         )
 
+    # Add divergence legend in top-left corner
+    # Using paper coordinates to position relative to plot area
+    legend_text = (
+        "<b>Divergence Markers</b><br>"
+        "<span style='font-size:14px'>+</span> Bullish<br>"
+        "<span style='font-size:12px'>◆</span> Bearish<br>"
+        "<span style='font-size:10px'>●</span> None<br>"
+        "<span style='font-size:10px'>○</span> Ring = Score 2+<br>"
+        "<span style='font-size:10px; font-weight:bold'>○</span> Bold = Score 4"
+    )
+    fig.add_annotation(
+        x=0.01,
+        y=0.99,
+        xref="paper",
+        yref="paper",
+        text=legend_text,
+        showarrow=False,
+        font={"size": 10, "color": "rgba(0,0,0,0.7)"},
+        align="left",
+        bgcolor="rgba(255,255,255,0.85)",
+        bordercolor="rgba(0,0,0,0.2)",
+        borderwidth=1,
+        borderpad=6,
+        xanchor="left",
+        yanchor="top",
+    )
+
     fig.update_layout(
         title="",
         xaxis_title="Daily RSI",
