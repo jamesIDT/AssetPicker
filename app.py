@@ -1184,12 +1184,24 @@ if st.session_state.coin_data is not None:
                             table_data.append({
                                 "Rank": rank,
                                 "Symbol": coin.get("symbol", ""),
-                                "Score": f"{opp.get('final_score', 0):.2f}",
+                                "Score": opp.get('final_score', 0),  # Numeric for ProgressColumn
                                 "Factors": factors_str,
                             })
 
                         df = pd.DataFrame(table_data)
-                        st.dataframe(df, hide_index=True, use_container_width=True)
+                        st.dataframe(
+                            df,
+                            column_config={
+                                "Score": st.column_config.ProgressColumn(
+                                    "Score",
+                                    format="%.2f",
+                                    min_value=0,
+                                    max_value=5,
+                                ),
+                            },
+                            hide_index=True,
+                            use_container_width=True,
+                        )
 
                         st.caption(f"Showing {len(display_coins)} of {len(filtered_coins)} signals")
             else:
