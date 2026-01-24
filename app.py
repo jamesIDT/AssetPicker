@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 
 from src.charts import build_rsi_scatter
 from src.coingecko import CoinGeckoClient
-from src.rsi import get_daily_rsi, get_weekly_rsi
+from src.indicators import calculate_divergence_score, detect_divergence
+from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
 load_dotenv()
@@ -34,6 +35,8 @@ st.markdown(
 # Initialize session state
 if "coin_data" not in st.session_state:
     st.session_state.coin_data = None
+if "divergence_data" not in st.session_state:
+    st.session_state.divergence_data = None
 if "last_updated" not in st.session_state:
     st.session_state.last_updated = None
 if "failed_coins" not in st.session_state:
@@ -66,7 +69,78 @@ def load_watchlist() -> list[dict]:
     return data.get("coins", [])
 
 
-async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
+def get_rsi_history(closes: list[float], period: int = 14) -> list[float]:
+    """
+    Calculate RSI history (rolling RSI values) for divergence detection.
+
+    Args:
+        closes: List of closing prices (oldest to newest)
+        period: RSI period (default: 14)
+
+    Returns:
+        List of RSI values starting from when there's enough data
+    """
+    if len(closes) < period + 1:
+        return []
+
+    rsi_history = []
+
+    # Calculate deltas
+    deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains = [d if d > 0 else 0 for d in deltas]
+    losses = [-d if d < 0 else 0 for d in deltas]
+
+    # First average
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    # Calculate first RSI
+    if avg_loss == 0:
+        rsi_history.append(100.0)
+    else:
+        rs = avg_gain / avg_loss
+        rsi_history.append(100 - (100 / (1 + rs)))
+
+    # Calculate remaining RSI values with smoothing
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
+        if avg_loss == 0:
+            rsi_history.append(100.0)
+        else:
+            rs = avg_gain / avg_loss
+            rsi_history.append(100 - (100 / (1 + rs)))
+
+    return rsi_history
+
+
+def aggregate_to_weekly(prices: list[tuple[int, float]]) -> list[float]:
+    """
+    Aggregate daily price data to weekly closes.
+
+    Args:
+        prices: List of (timestamp_ms, price) tuples
+
+    Returns:
+        List of weekly closing prices (oldest to newest)
+    """
+    if not prices:
+        return []
+
+    weekly_closes: dict[tuple[int, int], float] = {}
+
+    for timestamp_ms, price in prices:
+        dt = datetime.fromtimestamp(timestamp_ms / 1000)
+        iso = dt.isocalendar()
+        week_key = (iso.year, iso.week)
+        weekly_closes[week_key] = price
+
+    sorted_weeks = sorted(weekly_closes.keys())
+    return [weekly_closes[week] for week in sorted_weeks]
+
+
+async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int]:
     """
     Fetch market data and calculate RSI for all coins.
 
@@ -74,7 +148,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
         coin_ids: List of CoinGecko coin IDs
 
     Returns:
-        Tuple of (coin data list, failed count)
+        Tuple of (coin data list, divergence data list, failed count)
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
@@ -85,6 +159,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
     market_lookup = {c["id"]: c for c in market_data}
 
     result = []
+    divergence_result = []
     failed_count = 0
 
     for coin_id in coin_ids:
@@ -122,7 +197,43 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
             }
         )
 
-    return result, failed_count
+        # Calculate divergence data
+        prices = hist.get("prices", [])
+        daily_closes = extract_closes(hist)
+        daily_rsi_history = get_rsi_history(daily_closes)
+
+        # Weekly data for weekly divergence
+        weekly_closes = aggregate_to_weekly(prices)
+        weekly_rsi_history = get_rsi_history(weekly_closes)
+
+        # Detect daily divergence (use last 14 periods)
+        daily_div = None
+        if len(daily_closes) >= 14 and len(daily_rsi_history) >= 14:
+            daily_div = detect_divergence(
+                daily_closes[-14:], daily_rsi_history[-14:], lookback=14
+            )
+
+        # Detect weekly divergence
+        weekly_div = None
+        if len(weekly_closes) >= 14 and len(weekly_rsi_history) >= 14:
+            weekly_div = detect_divergence(
+                weekly_closes[-14:], weekly_rsi_history[-14:], lookback=14
+            )
+
+        # Calculate combined score
+        score = calculate_divergence_score(daily_div, weekly_div)
+
+        # Determine dominant divergence type
+        # Priority: daily divergence, then weekly
+        div_type = "none"
+        if daily_div and daily_div.get("type") != "none":
+            div_type = daily_div["type"]
+        elif weekly_div and weekly_div.get("type") != "none":
+            div_type = weekly_div["type"]
+
+        divergence_result.append({"type": div_type, "score": score})
+
+    return result, divergence_result, failed_count
 
 
 # Main UI
@@ -145,8 +256,9 @@ coin_ids = [c["id"] for c in watchlist]
 if st.button("Refresh Data", type="primary"):
     with st.spinner("Fetching data from CoinGecko..."):
         try:
-            data, failed_count = asyncio.run(fetch_all_data(coin_ids))
+            data, divergence_data, failed_count = asyncio.run(fetch_all_data(coin_ids))
             st.session_state.coin_data = data
+            st.session_state.divergence_data = divergence_data
             st.session_state.last_updated = datetime.now()
             st.session_state.failed_coins = failed_count
         except Exception as e:
@@ -168,7 +280,9 @@ if st.session_state.coin_data is not None:
         st.warning("No valid coin data available. Check your watchlist configuration.")
     else:
         # Build and display chart - responsive square
-        fig = build_rsi_scatter(st.session_state.coin_data)
+        fig = build_rsi_scatter(
+            st.session_state.coin_data, st.session_state.divergence_data
+        )
         st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 
         # Signal lists with star explanation
