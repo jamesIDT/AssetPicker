@@ -972,17 +972,39 @@ if st.session_state.coin_data is not None:
         for c in filtered_coin_data:
             zscore_data.append(c.get("zscore_info"))
 
-        # Build and display chart - responsive square
-        fig = build_rsi_scatter(
-            filtered_coin_data,
-            filtered_divergence_data,
-            beta_data=beta_residuals,
-            color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
-            sector_data=sector_data,
-            zscore_data=zscore_data,
-            show_zscore=show_zscore,
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
+        # Hero Charts Row - RSI Scatter (65%) | Acceleration Quadrant (35%)
+        chart_col1, chart_col2 = st.columns([0.65, 0.35])
+
+        with chart_col1:
+            # Build and display RSI Scatter chart
+            fig = build_rsi_scatter(
+                filtered_coin_data,
+                filtered_divergence_data,
+                beta_data=beta_residuals,
+                color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
+                sector_data=sector_data,
+                zscore_data=zscore_data,
+                show_zscore=show_zscore,
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
+
+        with chart_col2:
+            # Acceleration Quadrant
+            st.markdown("### Acceleration Quadrant")
+            # Filter coins with both acceleration and volatility data
+            accel_coins = [
+                c for c in st.session_state.coin_data
+                if c.get("acceleration") is not None and c.get("volatility") is not None
+            ]
+
+            if accel_coins:
+                accel_fig = build_acceleration_quadrant(accel_coins)
+                st.plotly_chart(accel_fig, use_container_width=True)
+                st.caption(
+                    "**Bottom-right** (Accel + Compressed) = highest conviction."
+                )
+            else:
+                st.info("Acceleration data requires price history. Refresh to load.")
 
         # Signal lists with star explanation
         st.markdown("---")
@@ -1235,24 +1257,6 @@ if st.session_state.coin_data is not None:
                 st.dataframe(df, hide_index=True, use_container_width=True)
             else:
                 st.info("No sector data available.")
-
-        # Acceleration Quadrant section
-        with st.expander("📊 Acceleration Quadrant", expanded=False):
-            # Filter coins with both acceleration and volatility data
-            accel_coins = [
-                c for c in st.session_state.coin_data
-                if c.get("acceleration") is not None and c.get("volatility") is not None
-            ]
-
-            if accel_coins:
-                fig = build_acceleration_quadrant(accel_coins)
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption(
-                    "**Bottom-right quadrant** (Accelerating + Compressed volatility) = highest conviction. "
-                    "Watch for explosive moves in top-right."
-                )
-            else:
-                st.info("Acceleration data requires price history. Refresh to load.")
 
         # Opportunity Leaderboard section
         with st.expander("🏆 Opportunity Leaderboard", expanded=False):
