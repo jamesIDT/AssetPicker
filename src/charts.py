@@ -47,6 +47,8 @@ def build_rsi_scatter(
     sector_data: list[dict] | None = None,
     zscore_data: list[dict | None] | None = None,
     show_zscore: bool = False,
+    height: int = 600,
+    beta_benchmark: str = "BTC",
 ) -> go.Figure:
     """
     Build scatter plot showing daily RSI vs liquidity with configurable color encoding.
@@ -74,6 +76,8 @@ def build_rsi_scatter(
             - zscore: Z-score value
             - extreme: "oversold" | "overbought" | "normal"
         show_zscore: If True, show z-score labels for extreme readings (|z| > 1.5)
+        height: Chart height in pixels (default 600)
+        beta_benchmark: Label for beta benchmark ("BTC", "ETH", "Total3") for colorbar title
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -208,7 +212,7 @@ def build_rsi_scatter(
         color_values = beta_data
         colorscale = "RdYlGn"  # NOT reversed - positive residual = green (outperforming)
         cmin, cmax = -20, 20
-        colorbar_title = "Beta Residual"
+        colorbar_title = f"Beta vs {beta_benchmark}"
         colorbar_tickvals = [-20, -10, 0, 10, 20]
     else:
         color_values = weekly_rsi
@@ -559,13 +563,13 @@ def build_rsi_scatter(
         plot_bgcolor="rgba(74, 79, 94, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
-        height=600,
+        height=height,
     )
 
     return fig
 
 
-def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
+def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) -> go.Figure:
     """
     Build scatter plot showing RSI acceleration vs volatility regime for opportunity detection.
 
@@ -581,6 +585,7 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
             - daily_rsi: Daily RSI value (0-100)
             - acceleration: Dict with "acceleration" key from calculate_rsi_acceleration
             - volatility: Dict with "ratio" key from detect_volatility_regime
+        height: Chart height in pixels (default 600)
 
     Returns:
         Plotly Figure object with the quadrant scatter plot
@@ -784,7 +789,7 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
         plot_bgcolor="rgba(74, 79, 94, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
-        height=600,
+        height=height,
     )
 
     return fig

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from src.charts import build_acceleration_quadrant, build_rsi_scatter
 from src.coingecko import CoinGeckoClient
+from src.data_store import load_data, save_data
 from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
@@ -41,6 +42,7 @@ st.markdown(
        GOOGLE FONTS IMPORT
        ================================================================= */
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
 
     /* =================================================================
        CSS DESIGN TOKENS
@@ -172,20 +174,36 @@ st.markdown(
         font-weight: 500 !important;
     }
 
-    /* Fix expander icon positioning */
-    [data-testid="stExpander"] svg {
-        min-width: 1rem !important;
-        margin-right: 0.5rem !important;
-    }
-
+    /* Fix expander icon - hide Material Icons text and use CSS triangle */
     [data-testid="stExpander"] details > summary {
         display: flex !important;
         align-items: center !important;
         gap: 0.5rem !important;
     }
 
-    [data-testid="stExpander"] details > summary > span {
-        flex: 1 !important;
+    /* Hide the broken Material Icons text completely */
+    [data-testid="stIconMaterial"] {
+        font-size: 0 !important;
+        width: 16px !important;
+        height: 16px !important;
+        display: inline-block !important;
+        position: relative !important;
+    }
+
+    /* Replace with CSS arrow */
+    [data-testid="stIconMaterial"]::before {
+        content: "▸" !important;
+        font-size: 1rem !important;
+        color: var(--text-1) !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        transition: transform 0.2s ease !important;
+    }
+
+    [data-testid="stExpander"] details[open] [data-testid="stIconMaterial"]::before {
+        content: "▾" !important;
     }
 
     /* =================================================================
@@ -492,24 +510,140 @@ st.markdown(
         letter-spacing: 0.05em !important;
         margin-bottom: 0.75rem !important;
     }
+
+    /* =================================================================
+       CHART PANEL TITLE BUTTONS (tertiary buttons as clickable headers)
+       ================================================================= */
+    /* Style tertiary buttons as panel title bars */
+    [data-testid="stButton"] button[kind="tertiary"] {
+        background: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 2px !important;
+        color: var(--text-0) !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        padding: 0.75rem 1rem !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        transition: all 0.15s ease !important;
+    }
+
+    [data-testid="stButton"] button[kind="tertiary"]:hover {
+        background: var(--panel-hover) !important;
+        border-color: var(--accent) !important;
+        color: var(--accent) !important;
+    }
+
+    /* =================================================================
+       FULLSCREEN DIALOG/MODAL STYLING
+       ================================================================= */
+    /* Target overlay backdrop */
+    .stDialog,
+    [data-baseweb="modal"] {
+        background-color: var(--bg-0) !important;
+        padding: 0 !important;
+    }
+
+    /* Target all modal containers and wrappers */
+    .stDialog > div,
+    [data-baseweb="modal"] > div,
+    .st-emotion-cache-1gulkj5,
+    .st-emotion-cache-z5fcl4 {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        min-width: 100vw !important;
+        min-height: 100vh !important;
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        inset: 0 !important;
+        position: fixed !important;
+    }
+
+    /* Target the dialog box itself - multiple selectors for specificity */
+    div[role="dialog"],
+    [data-baseweb="modal"] div[role="dialog"],
+    .stDialog div[role="dialog"] {
+        background-color: var(--bg-0) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        min-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        inset: 0 !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        position: fixed !important;
+        transform: none !important;
+    }
+
+    /* Dialog header styling */
+    div[role="dialog"] > div:first-child {
+        background-color: var(--bg-1) !important;
+        border-bottom: 1px solid var(--line) !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    /* Dialog title text */
+    div[role="dialog"] > div:first-child span {
+        color: var(--text-0) !important;
+        font-size: 1rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+
+    /* Dialog close button */
+    div[role="dialog"] button {
+        color: var(--text-2) !important;
+    }
+
+    div[role="dialog"] button:hover {
+        color: var(--accent) !important;
+    }
+
+    /* Dialog content area - fill remaining space */
+    div[role="dialog"] > div:last-child {
+        padding: 1rem !important;
+        height: calc(100vh - 50px) !important;
+        max-height: calc(100vh - 50px) !important;
+        overflow: auto !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Initialize session state
+# Initialize session state - load from persistent storage if available
 if "coin_data" not in st.session_state:
-    st.session_state.coin_data = None
-if "divergence_data" not in st.session_state:
-    st.session_state.divergence_data = None
-if "last_updated" not in st.session_state:
-    st.session_state.last_updated = None
-if "failed_coins" not in st.session_state:
-    st.session_state.failed_coins = 0
-if "btc_regime" not in st.session_state:
-    st.session_state.btc_regime = None
-if "btc_weekly_rsi" not in st.session_state:
-    st.session_state.btc_weekly_rsi = None
+    # Try to load from persistent storage first
+    cached_data = load_data()
+    if cached_data:
+        st.session_state.coin_data = cached_data["coin_data"]
+        st.session_state.divergence_data = cached_data["divergence_data"]
+        st.session_state.last_updated = cached_data["last_updated"]
+        st.session_state.failed_coins = cached_data["failed_coins"]
+        st.session_state.btc_regime = cached_data["btc_regime"]
+        st.session_state.btc_weekly_rsi = cached_data["btc_weekly_rsi"]
+    else:
+        st.session_state.coin_data = None
+        st.session_state.divergence_data = None
+        st.session_state.last_updated = None
+        st.session_state.failed_coins = 0
+        st.session_state.btc_regime = None
+        st.session_state.btc_weekly_rsi = None
 if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All Sectors"
 
@@ -655,6 +789,85 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         # Get BTC daily RSI for expected RSI calculation
         btc_daily_rsi = get_daily_rsi(btc_hist)
 
+    # Calculate ETH returns and RSI for ETH benchmark
+    eth_returns: list[float] = []
+    eth_daily_rsi: float | None = None
+
+    if "ethereum" in history:
+        eth_hist = history["ethereum"]
+        eth_prices = eth_hist.get("prices", [])
+
+        # Calculate ETH daily returns
+        if len(eth_prices) >= 2:
+            for i in range(1, len(eth_prices)):
+                prev_price = eth_prices[i - 1][1]
+                curr_price = eth_prices[i][1]
+                if prev_price > 0:
+                    eth_returns.append((curr_price - prev_price) / prev_price)
+
+        # Get ETH daily RSI
+        eth_daily_rsi = get_daily_rsi(eth_hist)
+
+    # Calculate Total3 (synthetic altcoin index) returns
+    # Total3 = Total market cap minus BTC, ETH, and stablecoins
+    # We approximate this by creating a market-cap weighted index of altcoins
+    stablecoin_ids = {"tether", "usd-coin", "dai", "binance-usd", "true-usd", "frax", "paxos-standard"}
+    excluded_ids = {"bitcoin", "ethereum"} | stablecoin_ids
+
+    # Collect altcoin returns with market caps for weighting
+    altcoin_data: list[tuple[str, list[float], float]] = []  # (coin_id, returns, market_cap)
+    for coin_id in coin_ids:
+        if coin_id in excluded_ids:
+            continue
+        if coin_id not in history or coin_id not in market_lookup:
+            continue
+
+        hist = history[coin_id]
+        prices = hist.get("prices", [])
+        mcap = market_lookup[coin_id].get("market_cap", 0)
+
+        if len(prices) >= 2 and mcap > 0:
+            coin_returns_list = []
+            for i in range(1, len(prices)):
+                prev_price = prices[i - 1][1]
+                curr_price = prices[i][1]
+                if prev_price > 0:
+                    coin_returns_list.append((curr_price - prev_price) / prev_price)
+            if coin_returns_list:
+                altcoin_data.append((coin_id, coin_returns_list, mcap))
+
+    # Calculate market-cap weighted Total3 returns
+    total3_returns: list[float] = []
+    total3_daily_rsi: float | None = None
+
+    if altcoin_data:
+        # Find minimum return length across all altcoins
+        min_len = min(len(r) for _, r, _ in altcoin_data)
+        if min_len >= 30:
+            total_mcap = sum(mcap for _, _, mcap in altcoin_data)
+
+            # Calculate weighted average return for each day
+            for day_idx in range(min_len):
+                weighted_return = 0.0
+                for _, returns, mcap in altcoin_data:
+                    # Use returns from the end (most recent)
+                    idx = len(returns) - min_len + day_idx
+                    weight = mcap / total_mcap
+                    weighted_return += returns[idx] * weight
+                total3_returns.append(weighted_return)
+
+            # Calculate synthetic Total3 price series and RSI
+            # Start with price of 100 and apply returns
+            total3_prices = [100.0]
+            for ret in total3_returns:
+                total3_prices.append(total3_prices[-1] * (1 + ret))
+
+            # Calculate Total3 RSI
+            if len(total3_prices) >= 15:
+                total3_rsi_history = get_rsi_history(total3_prices)
+                if total3_rsi_history:
+                    total3_daily_rsi = total3_rsi_history[-1]
+
     # Pre-calculate coins_for_sector and sector momentum (needed for opportunity score)
     coins_for_sector_pre = []
     for coin_id in coin_ids:
@@ -701,10 +914,13 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         mcap = market.get("market_cap", 0)
         vol_mcap_ratio = volume / mcap if mcap > 0 else 0
 
-        # Calculate beta-adjusted RSI
-        beta_info = None
+        # Calculate beta-adjusted RSI for all three benchmarks
+        beta_info_btc = None
+        beta_info_eth = None
+        beta_info_total3 = None
         prices = hist.get("prices", [])
-        if len(prices) >= 2 and len(btc_returns) >= 30 and btc_daily_rsi is not None:
+
+        if len(prices) >= 2:
             coin_returns = []
             for i in range(1, len(prices)):
                 prev_price = prices[i - 1][1]
@@ -712,14 +928,38 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 if prev_price > 0:
                     coin_returns.append((curr_price - prev_price) / prev_price)
 
-            # Align lengths - use the shorter of the two
-            min_len = min(len(coin_returns), len(btc_returns))
-            if min_len >= 30:
-                aligned_coin_returns = coin_returns[-min_len:]
-                aligned_btc_returns = btc_returns[-min_len:]
-                beta_info = calculate_beta_adjusted_rsi(
-                    aligned_coin_returns, aligned_btc_returns, daily_rsi, btc_daily_rsi
-                )
+            # Beta vs BTC
+            if len(btc_returns) >= 30 and btc_daily_rsi is not None:
+                min_len = min(len(coin_returns), len(btc_returns))
+                if min_len >= 30:
+                    aligned_coin_returns = coin_returns[-min_len:]
+                    aligned_btc_returns = btc_returns[-min_len:]
+                    beta_info_btc = calculate_beta_adjusted_rsi(
+                        aligned_coin_returns, aligned_btc_returns, daily_rsi, btc_daily_rsi
+                    )
+
+            # Beta vs ETH
+            if len(eth_returns) >= 30 and eth_daily_rsi is not None:
+                min_len = min(len(coin_returns), len(eth_returns))
+                if min_len >= 30:
+                    aligned_coin_returns = coin_returns[-min_len:]
+                    aligned_eth_returns = eth_returns[-min_len:]
+                    beta_info_eth = calculate_beta_adjusted_rsi(
+                        aligned_coin_returns, aligned_eth_returns, daily_rsi, eth_daily_rsi
+                    )
+
+            # Beta vs Total3
+            if len(total3_returns) >= 30 and total3_daily_rsi is not None:
+                min_len = min(len(coin_returns), len(total3_returns))
+                if min_len >= 30:
+                    aligned_coin_returns = coin_returns[-min_len:]
+                    aligned_total3_returns = total3_returns[-min_len:]
+                    beta_info_total3 = calculate_beta_adjusted_rsi(
+                        aligned_coin_returns, aligned_total3_returns, daily_rsi, total3_daily_rsi
+                    )
+
+        # Keep beta_info as the default (BTC) for backward compatibility
+        beta_info = beta_info_btc
 
         # Calculate signal lifecycle for oversold and overbought
         prices = hist.get("prices", [])
@@ -771,7 +1011,10 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             "price": market.get("current_price", 0),
             "volume": volume,
             "market_cap": mcap,
-            "beta_info": beta_info,
+            "beta_info": beta_info,  # Default (BTC) for backward compatibility
+            "beta_info_btc": beta_info_btc,
+            "beta_info_eth": beta_info_eth,
+            "beta_info_total3": beta_info_total3,
             "lifecycle_oversold": lifecycle_oversold,
             "lifecycle_overbought": lifecycle_overbought,
             "volatility": volatility,
@@ -942,6 +1185,15 @@ coin_ids = [c["id"] for c in watchlist]
 header_col1, header_col2 = st.columns([4, 1])
 with header_col1:
     st.title("Crypto RSI Screener")
+    # Sub-header: Data source + timestamp
+    subheader_parts = ["Data from CoinGecko Pro API"]
+    if st.session_state.last_updated:
+        relative = format_relative_time(st.session_state.last_updated)
+        full_time = st.session_state.last_updated.strftime("%Y-%m-%d %H:%M:%S")
+        subheader_parts.append(f"Updated {relative} ({full_time})")
+        if st.session_state.failed_coins > 0:
+            subheader_parts.append(f"{st.session_state.failed_coins} coin(s) unavailable")
+    st.caption(" · ".join(subheader_parts))
 with header_col2:
     st.write("")  # Spacer for vertical alignment
     if st.button("Refresh Data", type="primary", use_container_width=True):
@@ -954,70 +1206,23 @@ with header_col2:
                 st.session_state.failed_coins = failed_count
                 st.session_state.btc_regime = btc_regime
                 st.session_state.btc_weekly_rsi = btc_weekly_rsi
+                # Save to persistent storage
+                save_data(
+                    coin_data=data,
+                    divergence_data=divergence_data,
+                    last_updated=st.session_state.last_updated,
+                    failed_coins=failed_count,
+                    btc_regime=btc_regime,
+                    btc_weekly_rsi=btc_weekly_rsi,
+                )
+                st.rerun()
             except Exception as e:
                 st.error(f"Failed to fetch data: {e}")
 
-# === SUB-HEADER: Data source + timestamp ===
-subheader_parts = ["Data from CoinGecko Pro API"]
-if st.session_state.last_updated:
-    relative = format_relative_time(st.session_state.last_updated)
-    full_time = st.session_state.last_updated.strftime("%Y-%m-%d %H:%M:%S")
-    subheader_parts.append(f"Updated {relative} ({full_time})")
-    if st.session_state.failed_coins > 0:
-        subheader_parts.append(f"{st.session_state.failed_coins} coin(s) unavailable")
-st.caption(" · ".join(subheader_parts))
-
 # Display chart or message
 if st.session_state.coin_data is not None:
-    # Display regime banner if available
-    if st.session_state.btc_regime is not None:
-        regime = st.session_state.btc_regime
-        btc_rsi = st.session_state.btc_weekly_rsi
-        combined = regime.get("combined", "transition")
-
-        # Map regime to display properties (dark theme with colored accent borders)
-        # Format: (emoji_label, momentum_label, bg_color, border_color)
-        regime_display = {
-            "bull_rising": ("🐂 Bull ↗", "Rising", "rgba(76, 175, 80, 0.15)", "#4CAF50"),
-            "bull_falling": ("🐂 Bull ↘", "Cooling", "rgba(76, 175, 80, 0.10)", "#4CAF50"),
-            "bull_neutral": ("🐂 Bull →", "Steady", "rgba(76, 175, 80, 0.10)", "#4CAF50"),
-            "bear_rising": ("🐻 Bear ↗", "Recovering", "rgba(244, 67, 54, 0.10)", "#f44336"),
-            "bear_falling": ("🐻 Bear ↘", "Falling", "rgba(244, 67, 54, 0.15)", "#f44336"),
-            "bear_neutral": ("🐻 Bear →", "Steady", "rgba(244, 67, 54, 0.10)", "#f44336"),
-            "transition": ("⚖️ Transition", "", "rgba(255, 176, 32, 0.12)", "#FFB020"),
-        }
-
-        emoji_label, momentum_label, bg_color, border_color = regime_display.get(
-            combined, ("⚖️ Transition", "", "rgba(255, 176, 32, 0.12)", "#FFB020")
-        )
-
-        banner_text = emoji_label
-        if momentum_label:
-            banner_text += f" ({momentum_label})"
-        if btc_rsi is not None:
-            banner_text += f" | BTC Weekly RSI: {btc_rsi:.1f}"
-
-        st.markdown(
-            f"""
-            <div style="
-                background-color: {bg_color};
-                border-left: 3px solid {border_color};
-                padding: 8px 16px;
-                border-radius: 2px;
-                margin-bottom: 12px;
-                text-align: center;
-                font-size: 1.1em;
-                font-weight: 500;
-                color: #F6F8F7;
-            ">
-                {banner_text}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    # Collapsible "How to Read This Dashboard" panel
-    with st.expander("📖 How to Read This Dashboard", expanded=False):
+    # Collapsible "How to Read This Dashboard" panel - centered
+    with st.expander("Read This Dashboard", expanded=False):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -1079,7 +1284,7 @@ if st.session_state.coin_data is not None:
     if not st.session_state.coin_data:
         st.warning("No valid coin data available. Check your watchlist configuration.")
     else:
-        # Build sector options for filter dropdown
+        # Build sector counts for display
         sector_counts = {}
         for coin in st.session_state.coin_data:
             sector = coin.get("sector", "Other")
@@ -1089,10 +1294,60 @@ if st.session_state.coin_data is not None:
             f"{sector} ({count})" for sector, count in sorted(sector_counts.items())
         ]
 
-        # === CONTROLS ROW: Sector | Coins | Color Mode | Z-Score ===
-        ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns([2, 1, 2, 2])
+        # Prepare regime display data
+        regime_html = ""
+        if st.session_state.btc_regime is not None:
+            regime = st.session_state.btc_regime
+            btc_rsi = st.session_state.btc_weekly_rsi
+            combined = regime.get("combined", "transition")
 
+            # Map regime to display properties
+            regime_display = {
+                "bull_rising": ("🐂", "Bull", "Rising", "#4CAF50"),
+                "bull_falling": ("🐂", "Bull", "Cooling", "#4CAF50"),
+                "bull_neutral": ("🐂", "Bull", "Steady", "#4CAF50"),
+                "bear_rising": ("🐻", "Bear", "Recovering", "#f44336"),
+                "bear_falling": ("🐻", "Bear", "Falling", "#f44336"),
+                "bear_neutral": ("🐻", "Bear", "Steady", "#f44336"),
+                "transition": ("⚖️", "Transition", "", "#FFB020"),
+            }
+
+            emoji, regime_label, momentum_label, color = regime_display.get(
+                combined, ("⚖️", "Transition", "", "#FFB020")
+            )
+
+            momentum_text = f" · {momentum_label}" if momentum_label else ""
+            rsi_text = f"BTC Weekly RSI: {btc_rsi:.1f}" if btc_rsi is not None else ""
+
+            regime_html = f"""
+            <div style="
+                background: rgba(30, 30, 35, 0.6);
+                border: 1px solid {color}40;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: center;
+            ">
+                <div style="font-size: 1.5rem; margin-bottom: 4px;">{emoji}</div>
+                <div style="font-size: 1.1rem; font-weight: 600; color: {color};">{regime_label}</div>
+                <div style="font-size: 0.8rem; color: #888;">{momentum_text.strip(' · ')}</div>
+                <div style="font-size: 0.85rem; color: #aaa; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">{rsi_text}</div>
+            </div>
+            """
+
+        # Build sector breakdown HTML
+        sector_order = ["Majors", "DeFi", "AI", "DeSci"]
+        sector_items = []
+        for s in sector_order:
+            if s in sector_counts:
+                sector_items.append(f'<span style="color: #888;">{s}</span> <span style="color: #ccc;">{sector_counts[s]}</span>')
+        sector_breakdown_html = " · ".join(sector_items)
+
+        # === THREE-COLUMN CONTROL STRIP ===
+        ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1, 1, 1])
+
+        # Column 1: Filters
         with ctrl_col1:
+            st.markdown('<div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Filters</div>', unsafe_allow_html=True)
             selected = st.selectbox(
                 "Sector",
                 sector_options,
@@ -1105,6 +1360,31 @@ if st.session_state.coin_data is not None:
                 st.session_state.selected_sector = "All Sectors"
             else:
                 st.session_state.selected_sector = selected.split(" (")[0]
+
+            color_mode = st.radio(
+                "Color by",
+                ["Weekly RSI", "Beta Residual"],
+                horizontal=False,
+                label_visibility="visible",
+                key="color_mode_radio",
+            )
+
+            # Show benchmark selector when Beta Residual mode is selected
+            beta_benchmark = "BTC"
+            if color_mode == "Beta Residual":
+                beta_benchmark = st.radio(
+                    "Beta Benchmark",
+                    ["BTC", "ETH", "Total3"],
+                    horizontal=True,
+                    label_visibility="visible",
+                    key="beta_benchmark_radio",
+                    help="BTC: vs Bitcoin | ETH: vs Ethereum | Total3: vs Altcoin Index (excl. BTC, ETH, stables)",
+                )
+
+            show_zscore = st.checkbox(
+                "Show Z-Score Labels",
+                value=False,
+            )
 
         # Filter coin data if sector selected
         if st.session_state.selected_sector != "All Sectors":
@@ -1121,32 +1401,45 @@ if st.session_state.coin_data is not None:
             filtered_coin_data = st.session_state.coin_data
             filtered_divergence_data = st.session_state.divergence_data
 
+        # Column 2: Coverage stats
         with ctrl_col2:
-            st.markdown(
-                f'<div style="text-align: center; padding: 0.5rem;"><span style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">COINS</span><br><span style="font-size: 1.5rem; font-weight: 600; color: var(--text-0);">{len(filtered_coin_data)}</span></div>',
-                unsafe_allow_html=True,
-            )
+            total_coins = len(st.session_state.coin_data)
+            filtered_count = len(filtered_coin_data)
+            display_count = filtered_count if st.session_state.selected_sector != "All Sectors" else total_coins
 
+            st.markdown(f"""
+            <div style="text-align: center; padding: 8px 0;">
+                <div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Coverage</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #F6F8F7; line-height: 1;">{display_count}</div>
+                <div style="font-size: 0.9rem; color: #888; margin-top: 4px;">coins</div>
+                <div style="font-size: 0.8rem; color: #666; margin-top: 12px; line-height: 1.6;">
+                    {sector_breakdown_html}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Column 3: Market Regime
         with ctrl_col3:
-            color_mode = st.radio(
-                "Color Mode",
-                ["Weekly RSI", "Beta Residual"],
-                horizontal=True,
-                label_visibility="collapsed",
-            )
+            st.markdown('<div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Market Regime</div>', unsafe_allow_html=True)
+            if regime_html:
+                st.markdown(regime_html, unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="color: #666; text-align: center; padding: 20px;">No regime data</div>', unsafe_allow_html=True)
 
-        with ctrl_col4:
-            show_zscore = st.checkbox(
-                "Show Z-Score Labels",
-                value=False,
-            )
-
-        # Extract beta residuals for beta mode
+        # Extract beta residuals for beta mode based on selected benchmark
         beta_residuals = None
         if color_mode == "Beta Residual":
+            # Map benchmark selection to data key
+            beta_key_map = {
+                "BTC": "beta_info_btc",
+                "ETH": "beta_info_eth",
+                "Total3": "beta_info_total3",
+            }
+            beta_key = beta_key_map.get(beta_benchmark, "beta_info_btc")
+
             beta_residuals = []
             for c in filtered_coin_data:
-                beta_info = c.get("beta_info")
+                beta_info = c.get(beta_key) or c.get("beta_info")  # Fallback to default
                 if beta_info is not None:
                     beta_residuals.append(beta_info.get("residual", 0))
                 else:
@@ -1165,21 +1458,19 @@ if st.session_state.coin_data is not None:
         for c in filtered_coin_data:
             zscore_data.append(c.get("zscore_info"))
 
+        # Visual divider before charts
+        st.markdown('<hr style="border: none; border-top: 1px solid #333; margin: 24px 0 16px 0;">', unsafe_allow_html=True)
+
         # Section Header: Charts
         st.markdown(
             '<div class="section-header">CHARTS — MARKET OVERVIEW</div>',
             unsafe_allow_html=True,
         )
 
-        # Hero Charts Row - Equal width columns
-        chart_col1, chart_col2 = st.columns(2)
-
-        with chart_col1:
-            # RSI Scatter panel
-            st.markdown(
-                '<div class="bordered-panel"><div class="panel-title">RSI Scatter</div>',
-                unsafe_allow_html=True,
-            )
+        # Modal dialogs for fullscreen chart views
+        @st.dialog("RSI Scatter", width="large")
+        def show_rsi_scatter_modal():
+            """Show RSI Scatter chart in fullscreen modal."""
             fig = build_rsi_scatter(
                 filtered_coin_data,
                 filtered_divergence_data,
@@ -1188,31 +1479,78 @@ if st.session_state.coin_data is not None:
                 sector_data=sector_data,
                 zscore_data=zscore_data,
                 show_zscore=show_zscore,
+                height=900,
+                beta_benchmark=beta_benchmark,
             )
             st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
-            st.markdown('</div>', unsafe_allow_html=True)
 
-        with chart_col2:
-            # Acceleration Quadrant panel
-            st.markdown(
-                '<div class="bordered-panel"><div class="panel-title">Acceleration Quadrant</div>',
-                unsafe_allow_html=True,
-            )
-            # Filter coins with both acceleration and volatility data
+        @st.dialog("Acceleration Quadrant", width="large")
+        def show_accel_quadrant_modal():
+            """Show Acceleration Quadrant chart in fullscreen modal."""
             accel_coins = [
                 c for c in st.session_state.coin_data
                 if c.get("acceleration") is not None and c.get("volatility") is not None
             ]
-
             if accel_coins:
-                accel_fig = build_acceleration_quadrant(accel_coins)
+                accel_fig = build_acceleration_quadrant(accel_coins, height=900)
                 st.plotly_chart(accel_fig, use_container_width=True)
-                st.caption(
-                    "**Bottom-right** (Accel + Compressed) = highest conviction."
+            else:
+                st.info("Acceleration data requires price history. Refresh to load.")
+
+        # Pre-build the charts for inline display (taller charts)
+        rsi_scatter_fig = build_rsi_scatter(
+            filtered_coin_data,
+            filtered_divergence_data,
+            beta_data=beta_residuals,
+            color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
+            sector_data=sector_data,
+            zscore_data=zscore_data,
+            show_zscore=show_zscore,
+            height=550,
+            beta_benchmark=beta_benchmark,
+        )
+
+        accel_coins = [
+            c for c in st.session_state.coin_data
+            if c.get("acceleration") is not None and c.get("volatility") is not None
+        ]
+        accel_fig = build_acceleration_quadrant(accel_coins, height=550) if accel_coins else None
+
+        # Hero Charts Row - Equal width columns
+        chart_col1, chart_col2 = st.columns(2)
+
+        with chart_col1:
+            # RSI Scatter panel - button opens modal, chart below
+            if st.button(
+                "RSI SCATTER — Click to expand",
+                key="btn_rsi_panel",
+                use_container_width=True,
+                type="tertiary",
+            ):
+                show_rsi_scatter_modal()
+            st.plotly_chart(
+                rsi_scatter_fig,
+                use_container_width=True,
+                config={"responsive": True, "displayModeBar": False},
+            )
+
+        with chart_col2:
+            # Acceleration Quadrant panel - button opens modal, chart below
+            if st.button(
+                "ACCELERATION QUADRANT — Click to expand",
+                key="btn_accel_panel",
+                use_container_width=True,
+                type="tertiary",
+            ):
+                show_accel_quadrant_modal()
+            if accel_fig:
+                st.plotly_chart(
+                    accel_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
                 )
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
-            st.markdown('</div>', unsafe_allow_html=True)
 
         # Section Header: Analysis
         st.markdown(

@@ -19,3 +19,7 @@ build/
 # Planning docs (separate concern)
 .planning/
 tmpclaude-*
+
+# Cached data (except .gitkeep)
+data/*
+!data/.gitkeep
