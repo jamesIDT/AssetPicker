@@ -1,5 +1,6 @@
 """Binance Futures API client for fetching funding rates and open interest."""
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -33,6 +34,17 @@ class OpenInterestChange:
     current_oi: float
     change_24h_pct: float
     direction: Literal["increasing", "decreasing", "stable"]
+
+
+@dataclass
+class PositioningData:
+    """Complete positioning data for a symbol."""
+
+    funding_rate: float
+    oi_change_24h: float | None
+    crowded: Literal["long", "short", "neutral"]
+    crowded_score: int
+    squeeze_risk: Literal["high", "medium", "low"] | None
 
 
 class BinanceFundingError(Exception):
@@ -277,3 +289,92 @@ def create_symbol_mapping(coin_ids: list[dict]) -> dict[str, str]:
         if coin_id and symbol:
             mapping[coin_id] = BinanceFundingClient.symbol_to_exchange(symbol)
     return mapping
+
+
+def calculate_positioning(
+    funding_rate: float, oi_change_pct: float | None = None
+) -> dict:
+    """
+    Calculate positioning analysis from funding rate and OI change.
+
+    Args:
+        funding_rate: Funding rate as decimal (e.g., 0.0005 = 0.05%)
+        oi_change_pct: OI 24h change percentage (optional)
+
+    Returns:
+        Dict with:
+        - crowded: "long" | "short" | "neutral"
+        - crowded_score: 0-100 intensity (0=neutral, 100=extreme)
+        - squeeze_risk: "high" | "medium" | "low" | None
+    """
+    # Determine crowded status based on funding threshold (0.03%)
+    threshold = 0.0003
+    if funding_rate > threshold:
+        crowded: Literal["long", "short", "neutral"] = "long"
+    elif funding_rate < -threshold:
+        crowded = "short"
+    else:
+        crowded = "neutral"
+
+    # Calculate crowded score: abs(funding) / 0.001 * 100, capped at 100
+    crowded_score = min(int(abs(funding_rate) / 0.001 * 100), 100)
+
+    # Determine squeeze risk based on crowded status and OI change
+    squeeze_risk: Literal["high", "medium", "low"] | None = None
+    if crowded != "neutral" and oi_change_pct is not None:
+        if oi_change_pct > 10:
+            squeeze_risk = "high"
+        elif oi_change_pct > 5:
+            squeeze_risk = "medium"
+        elif oi_change_pct > 0:
+            squeeze_risk = "low"
+
+    return {
+        "crowded": crowded,
+        "crowded_score": crowded_score,
+        "squeeze_risk": squeeze_risk,
+    }
+
+
+async def get_positioning_for_coins(
+    client: BinanceFundingClient, symbols: list[str]
+) -> dict[str, PositioningData]:
+    """
+    Fetch positioning data for multiple symbols efficiently.
+
+    Args:
+        client: BinanceFundingClient instance
+        symbols: List of uppercase symbols (e.g., ["BTC", "ETH"])
+
+    Returns:
+        Dict mapping symbol -> PositioningData
+    """
+    # Fetch all funding rates in one call
+    funding_data = await client.get_funding_for_symbols(symbols)
+
+    # Fetch OI changes for all symbols in parallel
+    oi_tasks = [client.get_open_interest_change(symbol) for symbol in symbols]
+    oi_results = await asyncio.gather(*oi_tasks)
+    oi_data = dict(zip(symbols, oi_results))
+
+    # Combine into positioning data
+    result: dict[str, PositioningData] = {}
+    for symbol in symbols:
+        funding = funding_data.get(symbol)
+        oi = oi_data.get(symbol)
+
+        if funding is None:
+            continue
+
+        oi_change = oi.change_24h_pct if oi else None
+        positioning = calculate_positioning(funding.last_funding_rate, oi_change)
+
+        result[symbol] = PositioningData(
+            funding_rate=funding.last_funding_rate,
+            oi_change_24h=oi_change,
+            crowded=positioning["crowded"],
+            crowded_score=positioning["crowded_score"],
+            squeeze_risk=positioning["squeeze_risk"],
+        )
+
+    return result
