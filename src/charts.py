@@ -1,6 +1,7 @@
 """Plotly chart builders for RSI scatter visualization."""
 
 import math
+from typing import Any
 
 import plotly.graph_objects as go
 
@@ -553,6 +554,223 @@ def build_rsi_scatter(
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
         height=800,
+    )
+
+    return fig
+
+
+def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
+    """
+    Build scatter plot showing RSI acceleration vs volatility regime for opportunity detection.
+
+    Quadrants:
+    - Top-Right (>0, >1.3): Accelerating + High Vol = Explosive move in progress
+    - Top-Left (<0, >1.3): Decelerating + High Vol = Move exhausting
+    - Bottom-Right (>0, <0.7): Accelerating + Compressed = Coiled spring (BEST SIGNAL)
+    - Bottom-Left (<0, <0.7): Decelerating + Compressed = Dormant
+
+    Args:
+        coins: List of coin dicts with keys:
+            - symbol: Coin symbol (e.g., "BTC")
+            - daily_rsi: Daily RSI value (0-100)
+            - acceleration: Dict with "acceleration" key from calculate_rsi_acceleration
+            - volatility: Dict with "ratio" key from detect_volatility_regime
+
+    Returns:
+        Plotly Figure object with the quadrant scatter plot
+    """
+    fig = go.Figure()
+
+    # Filter coins with both acceleration and volatility data
+    valid_coins = []
+    for coin in coins:
+        accel = coin.get("acceleration")
+        vol = coin.get("volatility")
+        if accel is not None and vol is not None:
+            accel_val = accel.get("acceleration")
+            vol_ratio = vol.get("ratio")
+            if accel_val is not None and vol_ratio is not None:
+                valid_coins.append({
+                    "symbol": coin.get("symbol", "?"),
+                    "daily_rsi": coin.get("daily_rsi", 50),
+                    "acceleration": accel_val,
+                    "volatility_ratio": vol_ratio,
+                    "volatility_regime": vol.get("regime", "normal"),
+                    "interpretation": accel.get("interpretation", "stable"),
+                })
+
+    if not valid_coins:
+        fig.update_layout(
+            title="Acceleration Quadrant",
+            xaxis_title="RSI Acceleration",
+            yaxis_title="Volatility Ratio",
+            annotations=[
+                {
+                    "text": "No acceleration/volatility data available",
+                    "xref": "paper",
+                    "yref": "paper",
+                    "x": 0.5,
+                    "y": 0.5,
+                    "showarrow": False,
+                    "font": {"size": 16},
+                },
+            ],
+        )
+        return fig
+
+    # Extract data for plotting
+    symbols = [c["symbol"] for c in valid_coins]
+    accelerations = [c["acceleration"] for c in valid_coins]
+    vol_ratios = [c["volatility_ratio"] for c in valid_coins]
+    daily_rsis = [c["daily_rsi"] for c in valid_coins]
+
+    # Build customdata for tooltips
+    customdata = []
+    for c in valid_coins:
+        customdata.append([
+            c["symbol"],
+            c["daily_rsi"],
+            c["acceleration"],
+            c["volatility_regime"],
+            c["interpretation"],
+        ])
+
+    # Add quadrant background shading
+    # Calculate x-axis range from data
+    x_min = min(accelerations) - 1
+    x_max = max(accelerations) + 1
+    # Ensure x-axis includes 0 for the vertical divider
+    if x_min > -1:
+        x_min = -1
+    if x_max < 1:
+        x_max = 1
+
+    # y-axis range with padding
+    y_min = min(vol_ratios) * 0.8
+    y_max = max(vol_ratios) * 1.2
+    # Ensure y-axis covers the threshold lines
+    if y_min > 0.5:
+        y_min = 0.5
+    if y_max < 1.5:
+        y_max = 1.5
+
+    # Top-Left: Decelerating + High Vol = Exhausting (orange tint)
+    fig.add_shape(
+        type="rect", x0=x_min, x1=0, y0=1.3, y1=y_max,
+        fillcolor="rgba(255, 152, 0, 0.08)", line_width=0, layer="below"
+    )
+    # Top-Right: Accelerating + High Vol = Explosive (red tint)
+    fig.add_shape(
+        type="rect", x0=0, x1=x_max, y0=1.3, y1=y_max,
+        fillcolor="rgba(244, 67, 54, 0.08)", line_width=0, layer="below"
+    )
+    # Bottom-Left: Decelerating + Compressed = Dormant (gray tint)
+    fig.add_shape(
+        type="rect", x0=x_min, x1=0, y0=y_min, y1=0.7,
+        fillcolor="rgba(158, 158, 158, 0.08)", line_width=0, layer="below"
+    )
+    # Bottom-Right: Accelerating + Compressed = Coiled Spring (green tint - BEST)
+    fig.add_shape(
+        type="rect", x0=0, x1=x_max, y0=y_min, y1=0.7,
+        fillcolor="rgba(76, 175, 80, 0.12)", line_width=0, layer="below"
+    )
+
+    # Add quadrant boundary lines
+    # Vertical line at x=0
+    fig.add_shape(
+        type="line", x0=0, x1=0, y0=y_min, y1=y_max,
+        line={"color": "rgba(0,0,0,0.2)", "width": 1, "dash": "dot"}
+    )
+    # Horizontal line at y=0.7 (compressed threshold)
+    fig.add_shape(
+        type="line", x0=x_min, x1=x_max, y0=0.7, y1=0.7,
+        line={"color": "rgba(0,0,0,0.15)", "width": 1, "dash": "dot"}
+    )
+    # Horizontal line at y=1.3 (expanded threshold)
+    fig.add_shape(
+        type="line", x0=x_min, x1=x_max, y0=1.3, y1=1.3,
+        line={"color": "rgba(0,0,0,0.15)", "width": 1, "dash": "dot"}
+    )
+
+    # Add quadrant labels as annotations
+    label_font = {"size": 24, "color": "rgba(0,0,0,0.12)", "family": "Arial Black"}
+
+    # Top-Right: Explosive Move
+    fig.add_annotation(
+        x=0.85, y=0.92, text="Explosive Move 💥",
+        showarrow=False, font=label_font, xref="paper", yref="paper"
+    )
+    # Top-Left: Exhausting
+    fig.add_annotation(
+        x=0.15, y=0.92, text="Exhausting ⚠️",
+        showarrow=False, font=label_font, xref="paper", yref="paper"
+    )
+    # Bottom-Right: Coiled Spring (BEST)
+    fig.add_annotation(
+        x=0.85, y=0.08, text="Coiled Spring 🎯",
+        showarrow=False, font=label_font, xref="paper", yref="paper"
+    )
+    # Bottom-Left: Dormant
+    fig.add_annotation(
+        x=0.15, y=0.08, text="Dormant 💤",
+        showarrow=False, font=label_font, xref="paper", yref="paper"
+    )
+
+    # Add scatter trace
+    fig.add_trace(
+        go.Scatter(
+            x=accelerations,
+            y=vol_ratios,
+            mode="markers+text",
+            text=symbols,
+            textposition="top center",
+            textfont={"size": 9},
+            customdata=customdata,
+            marker={
+                "size": 12,
+                "color": daily_rsis,
+                "colorscale": "RdYlGn_r",  # Low RSI = green (oversold = opportunity)
+                "cmin": 0,
+                "cmax": 100,
+                "colorbar": {
+                    "title": "Daily RSI",
+                    "tickvals": [0, 25, 50, 75, 100],
+                    "len": 0.8,
+                },
+                "line": {"width": 1, "color": "rgba(0,0,0,0.3)"},
+            },
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                "Daily RSI: %{customdata[1]:.1f}<br>"
+                "Acceleration: %{customdata[2]:+.2f}<br>"
+                "Volatility Regime: %{customdata[3]}<br>"
+                "Interpretation: %{customdata[4]}"
+                "<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+
+    fig.update_layout(
+        title="",
+        xaxis_title="RSI Acceleration",
+        yaxis_title="Volatility Ratio",
+        xaxis={
+            "range": [x_min, x_max],
+            "zeroline": True,
+            "zerolinecolor": "rgba(0,0,0,0.1)",
+            "gridcolor": "rgba(0,0,0,0.05)",
+        },
+        yaxis={
+            "range": [y_min, y_max],
+            "zeroline": False,
+            "gridcolor": "rgba(0,0,0,0.05)",
+        },
+        showlegend=False,
+        plot_bgcolor="white",
+        margin={"l": 60, "r": 100, "t": 30, "b": 60},
+        autosize=True,
+        height=500,
     )
 
     return fig
