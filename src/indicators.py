@@ -380,3 +380,152 @@ def detect_volatility_regime(
         "ratio": round(ratio, 4),
         "regime": regime,
     }
+
+
+def detect_divergence(
+    price_history: list[float], rsi_history: list[float], lookback: int = 14
+) -> dict | None:
+    """
+    Detect bullish or bearish divergence between price and RSI.
+
+    Args:
+        price_history: Recent prices (oldest to newest)
+        rsi_history: Corresponding RSI values
+        lookback: Period to check for divergence
+
+    Returns:
+        Dict with keys:
+        - type: "bullish" | "bearish" | "none"
+        - strength: 1 | 2 (1 = weak divergence, 2 = strong divergence)
+        - description: Human-readable description
+        Returns None if insufficient data.
+    """
+    if len(price_history) < lookback or len(rsi_history) < lookback:
+        return None
+    if len(price_history) != len(rsi_history):
+        return None
+
+    # Use last `lookback` values
+    prices = price_history[-lookback:]
+    rsis = rsi_history[-lookback:]
+
+    # Find local extremes (lows for bullish, highs for bearish)
+    # We need at least 2 extremes to detect divergence
+
+    def find_local_lows(values: list[float]) -> list[tuple[int, float]]:
+        """Find local minima indices and values."""
+        lows = []
+        for i in range(1, len(values) - 1):
+            if values[i] < values[i - 1] and values[i] <= values[i + 1]:
+                lows.append((i, values[i]))
+        # Also check endpoints
+        if len(values) >= 2:
+            if values[0] < values[1]:
+                lows.insert(0, (0, values[0]))
+            if values[-1] < values[-2]:
+                lows.append((len(values) - 1, values[-1]))
+        return lows
+
+    def find_local_highs(values: list[float]) -> list[tuple[int, float]]:
+        """Find local maxima indices and values."""
+        highs = []
+        for i in range(1, len(values) - 1):
+            if values[i] > values[i - 1] and values[i] >= values[i + 1]:
+                highs.append((i, values[i]))
+        # Also check endpoints
+        if len(values) >= 2:
+            if values[0] > values[1]:
+                highs.insert(0, (0, values[0]))
+            if values[-1] > values[-2]:
+                highs.append((len(values) - 1, values[-1]))
+        return highs
+
+    # Check for bullish divergence: price lower low, RSI higher low
+    price_lows = find_local_lows(prices)
+    if len(price_lows) >= 2:
+        # Get two most significant lows (first and last in lookback)
+        first_low = price_lows[0]
+        last_low = price_lows[-1]
+
+        # Price makes lower low
+        if last_low[1] < first_low[1]:
+            # Check RSI at same indices
+            first_rsi = rsis[first_low[0]]
+            last_rsi = rsis[last_low[0]]
+
+            # RSI makes higher low (divergence)
+            if last_rsi > first_rsi:
+                rsi_diff = last_rsi - first_rsi
+                strength = 2 if rsi_diff >= 5 else 1
+                return {
+                    "type": "bullish",
+                    "strength": strength,
+                    "description": f"Bullish divergence: price lower low, RSI higher low (+{rsi_diff:.1f})",
+                }
+
+    # Check for bearish divergence: price higher high, RSI lower high
+    price_highs = find_local_highs(prices)
+    if len(price_highs) >= 2:
+        first_high = price_highs[0]
+        last_high = price_highs[-1]
+
+        # Price makes higher high
+        if last_high[1] > first_high[1]:
+            # Check RSI at same indices
+            first_rsi = rsis[first_high[0]]
+            last_rsi = rsis[last_high[0]]
+
+            # RSI makes lower high (divergence)
+            if last_rsi < first_rsi:
+                rsi_diff = first_rsi - last_rsi
+                strength = 2 if rsi_diff >= 5 else 1
+                return {
+                    "type": "bearish",
+                    "strength": strength,
+                    "description": f"Bearish divergence: price higher high, RSI lower high (-{rsi_diff:.1f})",
+                }
+
+    return {
+        "type": "none",
+        "strength": 0,
+        "description": "No divergence detected",
+    }
+
+
+def calculate_divergence_score(
+    daily_divergence: dict | None, weekly_divergence: dict | None
+) -> int:
+    """
+    Calculate multi-timeframe divergence score.
+
+    Args:
+        daily_divergence: Result from detect_divergence for daily timeframe
+        weekly_divergence: Result from detect_divergence for weekly timeframe
+
+    Returns:
+        Score based on divergence confluence:
+        - 0: No divergence on either timeframe
+        - 1: Single timeframe divergence (strength 1)
+        - 2: Single timeframe divergence (strength 2)
+        - 4: Both timeframes show divergence
+    """
+    # Check if we have valid divergences (not "none" type)
+    daily_has = (
+        daily_divergence is not None and daily_divergence.get("type") != "none"
+    )
+    weekly_has = (
+        weekly_divergence is not None and weekly_divergence.get("type") != "none"
+    )
+
+    # Both timeframes = highest score
+    if daily_has and weekly_has:
+        return 4
+
+    # Single timeframe - score based on strength
+    if daily_has:
+        return daily_divergence.get("strength", 1)
+    if weekly_has:
+        return weekly_divergence.get("strength", 1)
+
+    # No divergence
+    return 0
