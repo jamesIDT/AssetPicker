@@ -33,7 +33,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 16: Layout Restructure** - Side-by-side quadrants, new information hierarchy
 - [x] **Phase 17: Chart Theming** - Plotly charts updated to dark theme with new palette
 - [x] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
-- [ ] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
+- [x] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
 - [ ] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
 
 ## Phase Details
@@ -144,11 +144,11 @@ Components:
 Plans:
 - [x] 18-01: Restyle regime banner, leaderboard score bars, conviction badges
 
-#### Phase 19: Legends & Onboarding
+#### Phase 19: Legends & Onboarding (COMPLETE)
 **Goal**: Replace inline chart legends with collapsible "How to Read" panel
 **Depends on**: Phase 17
 **Research**: Unlikely (UI patterns established)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Changes:
 - Remove two large inline legend annotations from scatter chart
@@ -156,7 +156,7 @@ Changes:
 - Minimal icon legend in chart corner for experienced users
 
 Plans:
-- [ ] 19-01: TBD
+- [x] 19-01: Collapsible How to Read panel + minimal corner legend
 
 #### Phase 20: Polish & Integration
 **Goal**: Final visual polish, responsive testing, remove redundant elements
@@ -200,5 +200,5 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 16. Layout Restructure | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 17. Chart Theming | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 18. Component Refinement | v3.0 | 1/1 | Complete | 2026-01-24 |
-| 19. Legends & Onboarding | v3.0 | 0/? | Not started | - |
+| 19. Legends & Onboarding | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 20. Polish & Integration | v3.0 | 0/? | Not started | - |
