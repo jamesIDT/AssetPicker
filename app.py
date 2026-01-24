@@ -381,9 +381,31 @@ if st.session_state.coin_data is not None:
     if not st.session_state.coin_data:
         st.warning("No valid coin data available. Check your watchlist configuration.")
     else:
+        # Color mode toggle
+        color_mode = st.radio(
+            "Color Mode",
+            ["Weekly RSI", "Beta Residual"],
+            horizontal=True,
+            help="Weekly RSI: Green=oversold, Red=overbought. Beta Residual: Green=outperforming BTC, Red=underperforming.",
+        )
+
+        # Extract beta residuals for beta mode
+        beta_residuals = None
+        if color_mode == "Beta Residual":
+            beta_residuals = []
+            for c in st.session_state.coin_data:
+                beta_info = c.get("beta_info")
+                if beta_info is not None:
+                    beta_residuals.append(beta_info.get("residual", 0))
+                else:
+                    beta_residuals.append(0)
+
         # Build and display chart - responsive square
         fig = build_rsi_scatter(
-            st.session_state.coin_data, st.session_state.divergence_data
+            st.session_state.coin_data,
+            st.session_state.divergence_data,
+            beta_data=beta_residuals,
+            color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
         )
         st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 

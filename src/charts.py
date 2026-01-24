@@ -39,10 +39,13 @@ def format_currency(value: float) -> str:
 
 
 def build_rsi_scatter(
-    coin_data: list[dict], divergence_data: list[dict] | None = None
+    coin_data: list[dict],
+    divergence_data: list[dict] | None = None,
+    beta_data: list[float] | None = None,
+    color_mode: str = "weekly_rsi",
 ) -> go.Figure:
     """
-    Build scatter plot showing daily RSI vs liquidity with weekly RSI color encoding.
+    Build scatter plot showing daily RSI vs liquidity with configurable color encoding.
 
     Args:
         coin_data: List of coin dicts with keys:
@@ -54,9 +57,12 @@ def build_rsi_scatter(
             - price: Current price
             - volume: 24h trading volume
             - market_cap: Market capitalization
+            - beta_info: Optional dict with beta, expected_rsi, residual, interpretation
         divergence_data: Optional list of divergence dicts (same order as coin_data):
             - type: "bullish" | "bearish" | "none"
             - score: 0 | 1 | 2 | 4
+        beta_data: Optional list of beta residual values (same order as coin_data)
+        color_mode: "weekly_rsi" or "beta_residual"
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -185,6 +191,20 @@ def build_rsi_scatter(
     vol_mcap = [c["vol_mcap_ratio"] for c in coin_data]
     weekly_rsi = [c["weekly_rsi"] for c in coin_data]
 
+    # Determine color values, colorscale, and range based on mode
+    if color_mode == "beta_residual" and beta_data is not None:
+        color_values = beta_data
+        colorscale = "RdYlGn"  # NOT reversed - positive residual = green (outperforming)
+        cmin, cmax = -20, 20
+        colorbar_title = "Beta Residual"
+        colorbar_tickvals = [-20, -10, 0, 10, 20]
+    else:
+        color_values = weekly_rsi
+        colorscale = "RdYlGn_r"  # Reversed - low RSI = green (oversold = opportunity)
+        cmin, cmax = 0, 100
+        colorbar_title = "Weekly RSI"
+        colorbar_tickvals = [0, 25, 50, 75, 100]
+
     # Build divergence info (default to none if not provided)
     if divergence_data is None:
         divergence_data = [{"type": "none", "score": 0} for _ in coin_data]
@@ -193,9 +213,13 @@ def build_rsi_scatter(
         divergence_data = [{"type": "none", "score": 0} for _ in coin_data]
 
     # Prepare customdata for enhanced tooltips:
-    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score]
-    customdata = [
-        [
+    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score, beta, residual]
+    customdata = []
+    for i, (c, d) in enumerate(zip(coin_data, divergence_data)):
+        beta_info = c.get("beta_info")
+        beta_val = beta_info.get("beta", 0) if beta_info else 0
+        residual_val = beta_info.get("residual", 0) if beta_info else 0
+        customdata.append([
             c["name"],
             format_currency(c["price"]),
             format_currency(c["volume"]),
@@ -203,9 +227,9 @@ def build_rsi_scatter(
             c["weekly_rsi"],
             d["type"],
             d["score"],
-        ]
-        for c, d in zip(coin_data, divergence_data)
-    ]
+            beta_val,
+            residual_val,
+        ])
 
     # Group coins by divergence type for efficient trace rendering
     # Indices for each group
@@ -236,16 +260,29 @@ def build_rsi_scatter(
         return [values[i] for i in indices]
 
     # Common hovertemplate for all traces
-    hovertemplate = (
-        "<b>%{customdata[0]}</b> (%{text})<br>"
-        "Price: %{customdata[1]}<br>"
-        "Volume: %{customdata[2]}<br>"
-        "Market Cap: %{customdata[3]}<br>"
-        "Daily RSI: %{x:.1f}<br>"
-        "Weekly RSI: %{customdata[4]:.1f}<br>"
-        "Divergence: %{customdata[5]} (score %{customdata[6]})"
-        "<extra></extra>"
-    )
+    if color_mode == "beta_residual":
+        hovertemplate = (
+            "<b>%{customdata[0]}</b> (%{text})<br>"
+            "Price: %{customdata[1]}<br>"
+            "Volume: %{customdata[2]}<br>"
+            "Market Cap: %{customdata[3]}<br>"
+            "Daily RSI: %{x:.1f}<br>"
+            "Weekly RSI: %{customdata[4]:.1f}<br>"
+            "Beta: %{customdata[7]:.2f} | Residual: %{customdata[8]:+.1f}<br>"
+            "Divergence: %{customdata[5]} (score %{customdata[6]})"
+            "<extra></extra>"
+        )
+    else:
+        hovertemplate = (
+            "<b>%{customdata[0]}</b> (%{text})<br>"
+            "Price: %{customdata[1]}<br>"
+            "Volume: %{customdata[2]}<br>"
+            "Market Cap: %{customdata[3]}<br>"
+            "Daily RSI: %{x:.1f}<br>"
+            "Weekly RSI: %{customdata[4]:.1f}<br>"
+            "Divergence: %{customdata[5]} (score %{customdata[6]})"
+            "<extra></extra>"
+        )
 
     # Layer 1: Outer rings for score >= 2 (thin ring)
     if score_2_indices:
@@ -257,10 +294,10 @@ def build_rsi_scatter(
                 marker={
                     "size": 18,
                     "symbol": "circle-open",
-                    "color": subset(score_2_indices, weekly_rsi),
-                    "colorscale": "RdYlGn_r",
-                    "cmin": 0,
-                    "cmax": 100,
+                    "color": subset(score_2_indices, color_values),
+                    "colorscale": colorscale,
+                    "cmin": cmin,
+                    "cmax": cmax,
                     "line": {"width": 1, "color": "rgba(0,0,0,0.4)"},
                 },
                 showlegend=False,
@@ -278,10 +315,10 @@ def build_rsi_scatter(
                 marker={
                     "size": 20,
                     "symbol": "circle-open",
-                    "color": subset(score_4_indices, weekly_rsi),
-                    "colorscale": "RdYlGn_r",
-                    "cmin": 0,
-                    "cmax": 100,
+                    "color": subset(score_4_indices, color_values),
+                    "colorscale": colorscale,
+                    "cmin": cmin,
+                    "cmax": cmax,
                     "line": {"width": 3, "color": "rgba(0,0,0,0.6)"},
                 },
                 showlegend=False,
@@ -303,13 +340,13 @@ def build_rsi_scatter(
                 marker={
                     "size": 10,
                     "symbol": "circle",
-                    "color": subset(neutral_indices, weekly_rsi),
-                    "colorscale": "RdYlGn_r",
-                    "cmin": 0,
-                    "cmax": 100,
+                    "color": subset(neutral_indices, color_values),
+                    "colorscale": colorscale,
+                    "cmin": cmin,
+                    "cmax": cmax,
                     "colorbar": {
-                        "title": "Weekly RSI",
-                        "tickvals": [0, 25, 50, 75, 100],
+                        "title": colorbar_title,
+                        "tickvals": colorbar_tickvals,
                         "len": 0.8,
                     },
                     "line": {"width": 1, "color": "rgba(0,0,0,0.3)"},
@@ -333,13 +370,13 @@ def build_rsi_scatter(
                 marker={
                     "size": 12,
                     "symbol": "cross",
-                    "color": subset(bullish_indices, weekly_rsi),
-                    "colorscale": "RdYlGn_r",
-                    "cmin": 0,
-                    "cmax": 100,
+                    "color": subset(bullish_indices, color_values),
+                    "colorscale": colorscale,
+                    "cmin": cmin,
+                    "cmax": cmax,
                     "colorbar": None if neutral_indices else {
-                        "title": "Weekly RSI",
-                        "tickvals": [0, 25, 50, 75, 100],
+                        "title": colorbar_title,
+                        "tickvals": colorbar_tickvals,
                         "len": 0.8,
                     },
                     "line": {"width": 2, "color": "rgba(0,0,0,0.5)"},
@@ -363,13 +400,13 @@ def build_rsi_scatter(
                 marker={
                     "size": 12,
                     "symbol": "diamond",
-                    "color": subset(bearish_indices, weekly_rsi),
-                    "colorscale": "RdYlGn_r",
-                    "cmin": 0,
-                    "cmax": 100,
+                    "color": subset(bearish_indices, color_values),
+                    "colorscale": colorscale,
+                    "cmin": cmin,
+                    "cmax": cmax,
                     "colorbar": None if (neutral_indices or bullish_indices) else {
-                        "title": "Weekly RSI",
-                        "tickvals": [0, 25, 50, 75, 100],
+                        "title": colorbar_title,
+                        "tickvals": colorbar_tickvals,
                         "len": 0.8,
                     },
                     "line": {"width": 2, "color": "rgba(0,0,0,0.5)"},
@@ -389,12 +426,12 @@ def build_rsi_scatter(
                 marker={
                     "size": 10,
                     "color": [],
-                    "colorscale": "RdYlGn_r",
-                    "cmin": 0,
-                    "cmax": 100,
+                    "colorscale": colorscale,
+                    "cmin": cmin,
+                    "cmax": cmax,
                     "colorbar": {
-                        "title": "Weekly RSI",
-                        "tickvals": [0, 25, 50, 75, 100],
+                        "title": colorbar_title,
+                        "tickvals": colorbar_tickvals,
                         "len": 0.8,
                     },
                 },
