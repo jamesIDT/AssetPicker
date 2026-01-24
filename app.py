@@ -1048,219 +1048,17 @@ if st.session_state.coin_data is not None:
             else:
                 st.markdown("_No overbought coins currently_")
 
-        # Signal Lifecycle Analysis section
-        with st.expander("📊 Signal Lifecycle Analysis", expanded=False):
-            # Filter coins with active lifecycle signals
-            lifecycle_coins = []
-            for coin in st.session_state.coin_data:
-                lc_over = coin.get("lifecycle_oversold")
-                lc_overbought = coin.get("lifecycle_overbought")
-                vol = coin.get("volatility")
-                price_chg = coin.get("price_change_pct")
+        # Market Analysis Section - Visible panels (not expanders)
+        st.markdown("---")
+        st.subheader("Market Analysis")
 
-                # Check if oversold signal is active
-                if lc_over and lc_over.get("state") not in ("none", None):
-                    # Determine volatility emoji
-                    vol_regime = vol.get("regime") if vol else "normal"
-                    vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
+        panel_col1, panel_col2 = st.columns(2)
 
-                    # Calculate conviction
-                    state = lc_over.get("state", "")
-                    is_fresh = state == "fresh"
-                    is_confirmed = state == "confirmed"
-                    is_compressed = vol_regime == "compressed"
-
-                    if is_fresh and is_compressed:
-                        conviction = "★★★"
-                        conviction_sort = 3
-                    elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
-                        conviction = "★★"
-                        conviction_sort = 2
-                    else:
-                        conviction = "★"
-                        conviction_sort = 1
-
-                    lifecycle_coins.append({
-                        "symbol": coin["symbol"],
-                        "signal_type": "🟢 Oversold",
-                        "stage": f"{lc_over.get('emoji', '')} {state.capitalize()}",
-                        "days": lc_over.get("days_in_zone", 0),
-                        "price_change": price_chg,
-                        "volatility": vol_emoji,
-                        "conviction": conviction,
-                        "conviction_sort": conviction_sort,
-                        "is_oversold": True,
-                    })
-
-                # Check if overbought signal is active
-                if lc_overbought and lc_overbought.get("state") not in ("none", None):
-                    vol_regime = vol.get("regime") if vol else "normal"
-                    vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
-
-                    state = lc_overbought.get("state", "")
-                    is_fresh = state == "fresh"
-                    is_confirmed = state == "confirmed"
-                    is_compressed = vol_regime == "compressed"
-
-                    if is_fresh and is_compressed:
-                        conviction = "★★★"
-                        conviction_sort = 3
-                    elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
-                        conviction = "★★"
-                        conviction_sort = 2
-                    else:
-                        conviction = "★"
-                        conviction_sort = 1
-
-                    lifecycle_coins.append({
-                        "symbol": coin["symbol"],
-                        "signal_type": "🔴 Overbought",
-                        "stage": f"{lc_overbought.get('emoji', '')} {state.capitalize()}",
-                        "days": lc_overbought.get("days_in_zone", 0),
-                        "price_change": price_chg,
-                        "volatility": vol_emoji,
-                        "conviction": conviction,
-                        "conviction_sort": conviction_sort,
-                        "is_oversold": False,
-                    })
-
-            if lifecycle_coins:
-                # Sort by conviction (highest first), then by days (ascending for fresh)
-                lifecycle_coins.sort(key=lambda x: (-x["conviction_sort"], x["days"]))
-
-                # Build display table
-                import pandas as pd
-                df_data = []
-                for lc in lifecycle_coins:
-                    price_chg_str = f"{lc['price_change']:+.1f}%" if lc["price_change"] is not None else "—"
-                    # Color price change based on signal direction
-                    # For oversold: positive price change is good (bouncing)
-                    # For overbought: negative price change is good (correcting)
-                    df_data.append({
-                        "Symbol": lc["symbol"],
-                        "Signal": lc["signal_type"],
-                        "Stage": lc["stage"],
-                        "Days": lc["days"],
-                        "Price Δ": price_chg_str,
-                        "Vol": lc["volatility"],
-                        "Conviction": lc["conviction"],
-                    })
-
-                df = pd.DataFrame(df_data)
-                st.dataframe(
-                    df,
-                    hide_index=True,
-                    use_container_width=True,
-                )
-            else:
-                st.info("No extreme RSI signals currently active.")
-
-            # Legend explaining badges
-            st.caption(
-                "**Signal Stages:** 🆕 Fresh (1-2 days) | ✓ Confirmed (3-5 days) | ⏳ Extended (6+ days) | ↗↘ Resolving (exiting zone)  \n"
-                "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
-                "**Conviction:** ★★★ Fresh + Compressed = Highest conviction | ★★ Confirmed or Fresh + Normal | ★ Other"
-            )
-
-        # Sector Momentum section
-        with st.expander("📊 Sector Momentum", expanded=False):
-            import plotly.graph_objects as go
-
-            # Build coin data for sector momentum calculation
-            coins_for_momentum = []
-            for coin in st.session_state.coin_data:
-                if coin.get("daily_rsi") is not None and coin.get("id"):
-                    coins_for_momentum.append({
-                        "id": coin["id"],
-                        "daily_rsi": coin["daily_rsi"],
-                        "market_cap": coin.get("market_cap", 0),
-                        "rsi_history": coin.get("rsi_history", []),
-                    })
-
-            sector_momentum = calculate_sector_momentum(coins_for_momentum)
-
-            if sector_momentum:
-                # Sort sectors by RSI (most oversold at top)
-                sorted_sectors = sorted(
-                    sector_momentum.items(),
-                    key=lambda x: x[1]["current_rsi"]
-                )
-
-                # Build bar chart data
-                sector_names = [s[0] for s in sorted_sectors]
-                rsi_values = [s[1]["current_rsi"] for s in sorted_sectors]
-                momentum_arrows = [s[1]["momentum_arrow"] for s in sorted_sectors]
-
-                # Color based on RSI zone
-                colors = []
-                for rsi in rsi_values:
-                    if rsi < 35:
-                        colors.append("#4CAF50")  # Green - oversold
-                    elif rsi > 65:
-                        colors.append("#f44336")  # Red - overbought
-                    else:
-                        colors.append("#FFC107")  # Yellow - neutral
-
-                # Create horizontal bar chart
-                fig = go.Figure()
-
-                fig.add_trace(go.Bar(
-                    y=sector_names,
-                    x=rsi_values,
-                    orientation="h",
-                    marker_color=colors,
-                    text=[f"{arrow}" for arrow in momentum_arrows],
-                    textposition="outside",
-                    textfont=dict(size=14),
-                    hovertemplate="<b>%{y}</b><br>RSI: %{x:.1f}<extra></extra>",
-                ))
-
-                # Add vertical line at x=50 (neutral)
-                fig.add_vline(x=50, line_dash="dash", line_color="gray", opacity=0.5)
-
-                fig.update_layout(
-                    title="Sector RSI (Most Oversold at Top)",
-                    xaxis_title="RSI",
-                    yaxis_title="",
-                    xaxis=dict(range=[0, 100]),
-                    height=max(300, len(sector_names) * 40),
-                    margin=dict(l=20, r=100, t=40, b=40),
-                    showlegend=False,
-                )
-
-                st.plotly_chart(fig, use_container_width=True)
-
-                # Check for rotation signals
-                rotation_sectors = [
-                    name for name, data in sorted_sectors
-                    if data.get("is_rotation_signal")
-                ]
-                if rotation_sectors:
-                    st.info(f"🔄 **Rotation signals:** {', '.join(rotation_sectors)}")
-
-                # Data table
-                import pandas as pd
-                table_data = []
-                for name, data in sorted_sectors:
-                    change_str = f"{data['change_7d']:+.1f}" if data["change_7d"] is not None else "—"
-                    days_bottom = data["days_since_bottom"] if data["days_since_bottom"] is not None else "—"
-                    table_data.append({
-                        "Sector": name,
-                        "RSI": f"{data['current_rsi']:.1f}",
-                        "7D Δ": change_str,
-                        "Momentum": data["momentum_arrow"],
-                        "Days Since Bottom": days_bottom,
-                        "Coins": data["count"],
-                    })
-
-                df = pd.DataFrame(table_data)
-                st.dataframe(df, hide_index=True, use_container_width=True)
-            else:
-                st.info("No sector data available.")
-
-        # Opportunity Leaderboard section
-        with st.expander("🏆 Opportunity Leaderboard", expanded=False):
+        # Opportunity Leaderboard (left panel)
+        with panel_col1:
             import pandas as pd
+
+            st.markdown("### Opportunity Leaderboard")
 
             # Filter coins with opportunity scores
             scored_coins = [
@@ -1273,16 +1071,16 @@ if st.session_state.coin_data is not None:
                 all_sectors = list(set(c.get("sector", "Other") for c in scored_coins))
                 all_sectors.sort()
 
-                col1, col2, col3 = st.columns(3)
+                filter_col1, filter_col2, filter_col3 = st.columns(3)
 
-                with col1:
+                with filter_col1:
                     sector_filter = st.selectbox(
                         "Sector",
                         ["All"] + all_sectors,
                         key="opp_sector_shared",
                     )
 
-                with col2:
+                with filter_col2:
                     min_score = st.slider(
                         "Min Score",
                         min_value=0.0,
@@ -1292,7 +1090,7 @@ if st.session_state.coin_data is not None:
                         key="opp_min_score_shared",
                     )
 
-                with col3:
+                with filter_col3:
                     max_age = st.slider(
                         "Max Age (days)",
                         min_value=1,
@@ -1303,7 +1101,7 @@ if st.session_state.coin_data is not None:
                     )
 
                 # Signal direction tabs
-                long_tab, short_tab = st.tabs(["Long Opportunities (Oversold)", "Short Opportunities (Overbought)"])
+                long_tab, short_tab = st.tabs(["Long (Oversold)", "Short (Overbought)"])
 
                 for tab, direction, tab_name in [
                     (long_tab, "long", "Long"),
@@ -1351,7 +1149,7 @@ if st.session_state.coin_data is not None:
 
                         # Show all toggle
                         show_all = st.checkbox("Show all", value=False, key=f"opp_show_all_{direction}")
-                        display_coins = filtered_coins if show_all else filtered_coins[:20]
+                        display_coins = filtered_coins if show_all else filtered_coins[:10]
 
                         if not display_coins:
                             st.info("No signals match the filters.")
@@ -1383,11 +1181,7 @@ if st.session_state.coin_data is not None:
                             table_data.append({
                                 "Rank": rank,
                                 "Symbol": coin.get("symbol", ""),
-                                "Sector": coin.get("sector", "Other"),
                                 "Score": f"{opp.get('final_score', 0):.2f}",
-                                "Base": f"{opp.get('base_score', 0):.2f}",
-                                "Fresh": f"{opp.get('freshness_multiplier', 1):.1f}x",
-                                "Conflu": f"{opp.get('confluence_multiplier', 1):.2f}x",
                                 "Factors": factors_str,
                             })
 
@@ -1395,21 +1189,102 @@ if st.session_state.coin_data is not None:
                         st.dataframe(df, hide_index=True, use_container_width=True)
 
                         st.caption(f"Showing {len(display_coins)} of {len(filtered_coins)} signals")
-
-                # Explanatory footer with formula
-                st.markdown("---")
-                st.caption(
-                    "**Score Formula:** Score = Base × Freshness × Confluence  \n"
-                    "**Base** = |Z-score of RSI| (statistical deviation)  \n"
-                    "**Freshness** = 1.0 (< 3 days) → 0.3 (14+ days)  \n"
-                    "**Confluence** = 1.0 + factor bonuses  \n\n"
-                    "**Factor Icons:**  \n"
-                    "📅 Weekly extreme (+0.2) | 📉 Divergence (+0.3/+0.5) | ⚡ Compressed vol (+0.2)  \n"
-                    "🔄 Sector turning (+0.1) | 💰 Funding aligned (+0.2) | 🎯 Decorrelation (+0.2)  \n\n"
-                    "_Higher score = stronger opportunity signal_"
-                )
             else:
                 st.info("No opportunity scores available. Refresh to load data.")
+
+        # Sector Momentum (right panel)
+        with panel_col2:
+            import plotly.graph_objects as go
+            import pandas as pd
+
+            st.markdown("### Sector Momentum")
+
+            # Build coin data for sector momentum calculation
+            coins_for_momentum = []
+            for coin in st.session_state.coin_data:
+                if coin.get("daily_rsi") is not None and coin.get("id"):
+                    coins_for_momentum.append({
+                        "id": coin["id"],
+                        "daily_rsi": coin["daily_rsi"],
+                        "market_cap": coin.get("market_cap", 0),
+                        "rsi_history": coin.get("rsi_history", []),
+                    })
+
+            sector_momentum = calculate_sector_momentum(coins_for_momentum)
+
+            if sector_momentum:
+                # Sort sectors by RSI (most oversold at top)
+                sorted_sectors = sorted(
+                    sector_momentum.items(),
+                    key=lambda x: x[1]["current_rsi"]
+                )
+
+                # Build bar chart data
+                sector_names = [s[0] for s in sorted_sectors]
+                rsi_values = [s[1]["current_rsi"] for s in sorted_sectors]
+                momentum_arrows = [s[1]["momentum_arrow"] for s in sorted_sectors]
+
+                # Color based on RSI zone
+                colors = []
+                for rsi in rsi_values:
+                    if rsi < 35:
+                        colors.append("#4CAF50")  # Green - oversold
+                    elif rsi > 65:
+                        colors.append("#f44336")  # Red - overbought
+                    else:
+                        colors.append("#FFC107")  # Yellow - neutral
+
+                # Create horizontal bar chart
+                sector_fig = go.Figure()
+
+                sector_fig.add_trace(go.Bar(
+                    y=sector_names,
+                    x=rsi_values,
+                    orientation="h",
+                    marker_color=colors,
+                    text=[f"{arrow}" for arrow in momentum_arrows],
+                    textposition="outside",
+                    textfont=dict(size=14),
+                    hovertemplate="<b>%{y}</b><br>RSI: %{x:.1f}<extra></extra>",
+                ))
+
+                # Add vertical line at x=50 (neutral)
+                sector_fig.add_vline(x=50, line_dash="dash", line_color="gray", opacity=0.5)
+
+                sector_fig.update_layout(
+                    xaxis_title="RSI",
+                    yaxis_title="",
+                    xaxis=dict(range=[0, 100]),
+                    height=max(250, len(sector_names) * 35),
+                    margin=dict(l=20, r=80, t=20, b=40),
+                    showlegend=False,
+                )
+
+                st.plotly_chart(sector_fig, use_container_width=True)
+
+                # Check for rotation signals
+                rotation_sectors = [
+                    name for name, data in sorted_sectors
+                    if data.get("is_rotation_signal")
+                ]
+                if rotation_sectors:
+                    st.info(f"🔄 **Rotation signals:** {', '.join(rotation_sectors)}")
+
+                # Data table
+                table_data = []
+                for name, data in sorted_sectors:
+                    change_str = f"{data['change_7d']:+.1f}" if data["change_7d"] is not None else "—"
+                    table_data.append({
+                        "Sector": name,
+                        "RSI": f"{data['current_rsi']:.1f}",
+                        "7D Δ": change_str,
+                        "Mom": data["momentum_arrow"],
+                    })
+
+                df = pd.DataFrame(table_data)
+                st.dataframe(df, hide_index=True, use_container_width=True)
+            else:
+                st.info("No sector data available.")
 
 else:
     # Empty state with context
