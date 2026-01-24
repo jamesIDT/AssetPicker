@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-23)
 
 **Core value:** Surface crypto assets where both daily AND weekly RSI align in extreme zones with adequate liquidity
-**Current focus:** v1.0 MVP shipped
+**Current focus:** Phase 7 — Data Layer Extensions
 
 ## Current Position
 
-Phase: 6 of 6 (Complete)
-Plan: All plans complete
-Status: v1.0 MVP shipped
-Last activity: 2026-01-23 — v1.0 milestone complete
+Phase: 7 of 14 (Data Layer Extensions)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-24 — v2.0 roadmap created
 
-Progress: ██████████ 100%
+Progress: ██████░░░░░░░░ 43% (6/14 phases)
 
 ## Performance Metrics
 
@@ -43,7 +43,7 @@ Progress: ██████████ 100%
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-All decisions marked as Good for v1.0.
+All v1.0 decisions marked as Good.
 
 ### Deferred Issues
 
@@ -55,6 +55,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-23
-Stopped at: v1.0 milestone complete
+Last session: 2026-01-24
+Stopped at: v2.0 roadmap created (8 new phases)
 Resume file: None
