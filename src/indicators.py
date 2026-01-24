@@ -102,6 +102,207 @@ def calculate_rsi_acceleration(rsi_history: list[float]) -> dict | None:
     }
 
 
+def calculate_zscore(values: list[float], lookback: int = 90) -> dict | None:
+    """
+    Calculate z-score for statistical extreme detection.
+
+    Args:
+        values: List of values (e.g., RSI history), oldest to newest
+        lookback: Number of periods for mean/std calculation (default: 90)
+
+    Returns:
+        Dict with keys:
+        - current: Current value
+        - mean: Rolling mean over lookback period
+        - std: Rolling standard deviation
+        - zscore: (current - mean) / std
+        - extreme: "oversold" | "overbought" | "normal"
+        Returns None if insufficient data (< 10 values).
+    """
+    if len(values) < 10:
+        return None
+
+    # Use all available values if less than lookback
+    data = values[-lookback:] if len(values) >= lookback else values
+    current = values[-1]
+
+    # Calculate mean
+    mean = sum(data) / len(data)
+
+    # Calculate standard deviation
+    variance = sum((x - mean) ** 2 for x in data) / len(data)
+    std = variance ** 0.5
+
+    # Calculate z-score (handle zero std)
+    if std == 0:
+        zscore = 0.0
+    else:
+        zscore = (current - mean) / std
+
+    # Classify extreme
+    if zscore < -2.0:
+        extreme = "oversold"
+    elif zscore > 2.0:
+        extreme = "overbought"
+    else:
+        extreme = "normal"
+
+    return {
+        "current": current,
+        "mean": round(mean, 4),
+        "std": round(std, 4),
+        "zscore": round(zscore, 4),
+        "extreme": extreme,
+    }
+
+
+def calculate_beta_adjusted_rsi(
+    coin_returns: list[float],
+    btc_returns: list[float],
+    coin_rsi: float,
+    btc_rsi: float,
+) -> dict | None:
+    """
+    Calculate beta-adjusted relative strength vs BTC.
+
+    Args:
+        coin_returns: Daily % returns for coin (oldest to newest)
+        btc_returns: Daily % returns for BTC (same period)
+        coin_rsi: Current RSI of coin
+        btc_rsi: Current RSI of BTC
+
+    Returns:
+        Dict with keys:
+        - beta: Coin's beta to BTC (covariance / variance)
+        - expected_rsi: What RSI we'd expect given BTC's RSI and beta
+        - residual: coin_rsi - expected_rsi
+        - interpretation: "outperforming" | "underperforming" | "expected"
+        Returns None if insufficient data (< 30 values) or mismatched lengths.
+    """
+    if len(coin_returns) < 30 or len(btc_returns) < 30:
+        return None
+    if len(coin_returns) != len(btc_returns):
+        return None
+
+    n = len(coin_returns)
+
+    # Calculate means
+    mean_coin = sum(coin_returns) / n
+    mean_btc = sum(btc_returns) / n
+
+    # Calculate covariance and variance
+    covariance = sum(
+        (coin_returns[i] - mean_coin) * (btc_returns[i] - mean_btc) for i in range(n)
+    ) / n
+    variance_btc = sum((b - mean_btc) ** 2 for b in btc_returns) / n
+
+    # Calculate beta (handle zero variance)
+    if variance_btc == 0:
+        beta = 1.0  # Default to market beta
+    else:
+        beta = covariance / variance_btc
+
+    # Expected RSI based on BTC RSI and beta
+    expected_rsi = 50 + beta * (btc_rsi - 50)
+
+    # Residual: actual - expected
+    residual = coin_rsi - expected_rsi
+
+    # Interpretation
+    if residual > 5:
+        interpretation = "outperforming"
+    elif residual < -5:
+        interpretation = "underperforming"
+    else:
+        interpretation = "expected"
+
+    return {
+        "beta": round(beta, 4),
+        "expected_rsi": round(expected_rsi, 4),
+        "residual": round(residual, 4),
+        "interpretation": interpretation,
+    }
+
+
+def calculate_mean_reversion_prob(
+    rsi_history: list[float], current_rsi: float, lookback: int = 90
+) -> dict | None:
+    """
+    Calculate mean reversion probability based on historical RSI behavior.
+
+    Args:
+        rsi_history: Historical RSI values (oldest to newest)
+        current_rsi: Current RSI to evaluate
+        lookback: How far back to analyze (default: 90)
+
+    Returns:
+        Dict with keys:
+        - current_rsi: Input RSI
+        - bucket: RSI range bucket (e.g., "25-30")
+        - occurrences: How many times RSI was in this bucket
+        - reversals: How many of those led to reversal toward 50 within 5 periods
+        - probability: reversals / occurrences (0-1)
+        - confidence: "high" | "medium" | "low" based on sample size
+        Returns None if insufficient data (< 30 values).
+    """
+    if len(rsi_history) < 30:
+        return None
+
+    # Use lookback or all available
+    data = rsi_history[-lookback:] if len(rsi_history) >= lookback else rsi_history
+
+    # Determine bucket (5-point ranges)
+    bucket_start = int(current_rsi // 5) * 5
+    bucket_end = bucket_start + 5
+    bucket = f"{bucket_start}-{bucket_end}"
+
+    # Find all occurrences in history where RSI was in same bucket
+    occurrences = 0
+    reversals = 0
+
+    for i in range(len(data) - 5):  # Need 5 periods ahead to check
+        rsi = data[i]
+        # Check if in same bucket
+        if bucket_start <= rsi < bucket_end:
+            occurrences += 1
+
+            # Check for reversal in next 5 periods
+            is_oversold = rsi < 50
+            next_5 = data[i + 1 : i + 6]
+
+            if is_oversold:
+                # Reversal = any of next 5 values > current + 5 (moving toward 50)
+                if any(v > rsi + 5 for v in next_5):
+                    reversals += 1
+            else:
+                # Reversal = any of next 5 values < current - 5 (moving toward 50)
+                if any(v < rsi - 5 for v in next_5):
+                    reversals += 1
+
+    # Calculate probability (handle zero occurrences)
+    if occurrences == 0:
+        probability = 0.0
+    else:
+        probability = reversals / occurrences
+
+    # Determine confidence
+    if occurrences >= 10:
+        confidence = "high"
+    elif occurrences >= 5:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    return {
+        "current_rsi": current_rsi,
+        "bucket": bucket,
+        "occurrences": occurrences,
+        "reversals": reversals,
+        "probability": round(probability, 4),
+        "confidence": confidence,
+    }
+
+
 def detect_volatility_regime(
     price_history: list[float], period: int = 14
 ) -> dict | None:
