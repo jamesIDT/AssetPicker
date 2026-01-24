@@ -288,6 +288,73 @@ st.markdown(
     }
 
     /* =================================================================
+       LOADING / SPINNER STYLING
+       ================================================================= */
+    .stSpinner > div {
+        border-top-color: var(--accent) !important;
+    }
+
+    /* =================================================================
+       ALERT STYLING (error, warning, info, success)
+       ================================================================= */
+    /* Error alerts - dark red background */
+    [data-testid="stAlert"][data-baseweb="notification"][kind="error"],
+    .stAlert div[data-testid="stNotificationContentError"] {
+        background-color: rgba(244, 67, 54, 0.15) !important;
+        border-left: 3px solid #f44336 !important;
+    }
+
+    /* Warning alerts - dark orange/yellow background */
+    [data-testid="stAlert"][data-baseweb="notification"][kind="warning"],
+    .stAlert div[data-testid="stNotificationContentWarning"] {
+        background-color: rgba(255, 152, 0, 0.15) !important;
+        border-left: 3px solid #FF9800 !important;
+    }
+
+    /* Info alerts - dark blue background */
+    [data-testid="stAlert"][data-baseweb="notification"][kind="info"],
+    .stAlert div[data-testid="stNotificationContentInfo"] {
+        background-color: rgba(33, 150, 243, 0.15) !important;
+        border-left: 3px solid #2196F3 !important;
+    }
+
+    /* Success alerts - dark green background */
+    [data-testid="stAlert"][data-baseweb="notification"][kind="success"],
+    .stAlert div[data-testid="stNotificationContentSuccess"] {
+        background-color: rgba(76, 175, 80, 0.15) !important;
+        border-left: 3px solid #4CAF50 !important;
+    }
+
+    /* Alert text color - cream for all */
+    .stAlert p,
+    .stAlert span,
+    [data-testid="stAlert"] p,
+    [data-testid="stAlert"] span {
+        color: var(--text-0) !important;
+    }
+
+    /* =================================================================
+       SPACING / LAYOUT POLISH
+       ================================================================= */
+    /* Reduce excessive gaps between major sections */
+    .main .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+
+    /* Tighten spacing around subheaders */
+    .stSubheader,
+    h3 {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* Consistent chart container margins */
+    [data-testid="stPlotlyChart"] {
+        margin-bottom: 0 !important;
+    }
+
+    /* =================================================================
        DATAFRAME / TABLE STYLING
        ================================================================= */
     [data-testid="stDataFrame"],
@@ -1067,48 +1134,6 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
-
-        # Signal lists with star explanation
-        st.markdown("---")
-        st.caption("Coins at RSI extremes (below 30 or above 70). ⭐ = weekly RSI also at extreme.")
-
-        # Gather data
-        opportunities = [
-            c for c in filtered_coin_data if c["daily_rsi"] < 30
-        ]
-        opportunities.sort(key=lambda c: c["daily_rsi"])
-
-        caution = [
-            c for c in filtered_coin_data if c["daily_rsi"] > 70
-        ]
-        caution.sort(key=lambda c: c["daily_rsi"], reverse=True)
-
-        # Display in balanced columns
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader(f"Potential Opportunities ({len(opportunities)})")
-            if opportunities:
-                for coin in opportunities:
-                    star = " ⭐" if coin["weekly_rsi"] < 30 else ""
-                    st.write(
-                        f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
-                        f"Weekly: {coin['weekly_rsi']:.1f}{star}"
-                    )
-            else:
-                st.markdown("_No oversold coins currently_")
-
-        with col2:
-            st.subheader(f"Exercise Caution ({len(caution)})")
-            if caution:
-                for coin in caution:
-                    star = " ⭐" if coin["weekly_rsi"] > 70 else ""
-                    st.write(
-                        f"**{coin['symbol']}** - Daily: {coin['daily_rsi']:.1f} | "
-                        f"Weekly: {coin['weekly_rsi']:.1f}{star}"
-                    )
-            else:
-                st.markdown("_No overbought coins currently_")
 
         # Market Analysis Section - Visible panels (not expanders)
         st.markdown("---")
