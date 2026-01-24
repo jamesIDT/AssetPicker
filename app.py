@@ -880,6 +880,65 @@ if st.session_state.coin_data is not None:
             unsafe_allow_html=True,
         )
 
+    # Collapsible "How to Read This Dashboard" panel
+    with st.expander("📖 How to Read This Dashboard", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("""
+            ### RSI Scatter Chart (Left)
+            **Position = Daily RSI × Liquidity**
+            - X-axis: Daily RSI (0-100)
+            - Y-axis: Volume/Market Cap ratio (log scale)
+
+            **Quadrants:**
+            - 🟢 **Capitulation** (top-left): Oversold + High Activity
+            - 🔴 **Peak Momentum** (top-right): Overbought + High Activity
+            - ⬜ **Forgotten** (bottom-left): Oversold + Low Activity
+            - 🟠 **Quiet Pump** (bottom-right): Overbought + Low Activity
+
+            **Color = Weekly RSI alignment**
+            - Green: Weekly oversold (<30) - timeframes aligned
+            - Red: Weekly overbought (>70) - timeframes aligned
+            - Yellow: Neutral weekly RSI
+
+            **Marker Shapes:**
+            - ● Circle: No divergence detected
+            - + Cross: Bullish divergence (price lower, RSI higher)
+            - ◆ Diamond: Bearish divergence (price higher, RSI lower)
+
+            **Divergence Rings:**
+            - Thin ring: Score 2 (single strong signal)
+            - Bold ring: Score 4 (multi-timeframe confirmation)
+            """)
+
+        with col2:
+            st.markdown("""
+            ### Acceleration Quadrant (Right)
+            **Position = RSI Acceleration × Volatility**
+            - X-axis: RSI velocity change (positive = accelerating up)
+            - Y-axis: Volatility ratio vs 20-day average
+
+            **Quadrants:**
+            - 🎯 **Coiled Spring** (bottom-right): Accelerating + Compressed → Best entry
+            - 💥 **Explosive Move** (top-right): Accelerating + High Vol → Move in progress
+            - ⚠️ **Exhausting** (top-left): Decelerating + High Vol → Move fading
+            - 💤 **Dormant** (bottom-left): Decelerating + Compressed → Waiting
+
+            ### Opportunity Leaderboard
+            **Score (0-5)**: Multi-factor ranking combining:
+            - RSI extremity and divergence
+            - Signal freshness (newer = higher)
+            - Volatility compression bonus
+            - Funding rate confluence
+
+            ### Signal Lifecycle
+            - **Fresh** ★★★: New signal, highest conviction
+            - **Confirmed** ★★: Sustained for 2-3 days
+            - **Extended** ★: 4+ days, may be exhausting
+            - **Resolving**: Moving back toward neutral
+            """)
+
     # Show timestamp with relative time and failed count
     if st.session_state.last_updated:
         relative = format_relative_time(st.session_state.last_updated)
