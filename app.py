@@ -924,6 +924,162 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
+
+        # Opportunity Leaderboard section
+        with st.expander("🏆 Opportunity Leaderboard", expanded=False):
+            import pandas as pd
+
+            # Filter coins with opportunity scores
+            scored_coins = [
+                c for c in st.session_state.coin_data
+                if c.get("opportunity_score") is not None
+            ]
+
+            if scored_coins:
+                # Signal direction tabs
+                long_tab, short_tab = st.tabs(["Long Opportunities (Oversold)", "Short Opportunities (Overbought)"])
+
+                for tab, direction, tab_name in [
+                    (long_tab, "long", "Long"),
+                    (short_tab, "short", "Short"),
+                ]:
+                    with tab:
+                        # Filter by signal direction
+                        direction_coins = [
+                            c for c in scored_coins
+                            if c.get("signal_direction") == direction
+                        ]
+
+                        if not direction_coins:
+                            st.info(f"No {tab_name.lower()} signals currently.")
+                            continue
+
+                        # Quick filters in columns
+                        col1, col2, col3 = st.columns(3)
+
+                        with col1:
+                            # Sector filter
+                            sectors_in_direction = list(set(c.get("sector", "Other") for c in direction_coins))
+                            sectors_in_direction.sort()
+                            sector_filter = st.selectbox(
+                                "Sector",
+                                ["All"] + sectors_in_direction,
+                                key=f"opp_sector_{direction}",
+                            )
+
+                        with col2:
+                            # Min score slider
+                            min_score = st.slider(
+                                "Min Score",
+                                min_value=0.0,
+                                max_value=5.0,
+                                value=0.0,
+                                step=0.5,
+                                key=f"opp_min_score_{direction}",
+                            )
+
+                        with col3:
+                            # Max age slider
+                            max_age = st.slider(
+                                "Max Age (days)",
+                                min_value=1,
+                                max_value=14,
+                                value=14,
+                                step=1,
+                                key=f"opp_max_age_{direction}",
+                            )
+
+                        # Apply filters
+                        filtered_coins = direction_coins
+                        if sector_filter != "All":
+                            filtered_coins = [c for c in filtered_coins if c.get("sector") == sector_filter]
+
+                        filtered_coins = [
+                            c for c in filtered_coins
+                            if c.get("opportunity_score", {}).get("final_score", 0) >= min_score
+                        ]
+
+                        # Filter by age (days_in_zone)
+                        def get_days_in_zone(coin):
+                            if direction == "long":
+                                lc = coin.get("lifecycle_oversold")
+                            else:
+                                lc = coin.get("lifecycle_overbought")
+                            return lc.get("days_in_zone", 0) if lc else 0
+
+                        filtered_coins = [
+                            c for c in filtered_coins
+                            if get_days_in_zone(c) <= max_age or get_days_in_zone(c) == 0
+                        ]
+
+                        # Sort by final_score descending
+                        filtered_coins.sort(
+                            key=lambda c: c.get("opportunity_score", {}).get("final_score", 0),
+                            reverse=True,
+                        )
+
+                        # Show all toggle
+                        show_all = st.checkbox("Show all", value=False, key=f"opp_show_all_{direction}")
+                        display_coins = filtered_coins if show_all else filtered_coins[:20]
+
+                        if not display_coins:
+                            st.info("No signals match the filters.")
+                            continue
+
+                        # Build table data
+                        table_data = []
+                        for rank, coin in enumerate(display_coins, 1):
+                            opp = coin.get("opportunity_score", {})
+                            factors = opp.get("factors", {})
+
+                            # Build factor icons
+                            factor_icons = []
+                            if factors.get("weekly_extreme"):
+                                factor_icons.append("📅")  # Weekly
+                            if factors.get("divergence"):
+                                factor_icons.append("📉")  # Divergence
+                            if factors.get("volatility_compressed"):
+                                factor_icons.append("⚡")  # Compressed
+                            if factors.get("sector_turning"):
+                                factor_icons.append("🔄")  # Sector
+                            if factors.get("funding_aligned"):
+                                factor_icons.append("💰")  # Funding
+                            if factors.get("decorrelation_positive"):
+                                factor_icons.append("🎯")  # Decorrelation
+
+                            factors_str = " ".join(factor_icons) if factor_icons else "—"
+
+                            table_data.append({
+                                "Rank": rank,
+                                "Symbol": coin.get("symbol", ""),
+                                "Sector": coin.get("sector", "Other"),
+                                "Score": f"{opp.get('final_score', 0):.2f}",
+                                "Base": f"{opp.get('base_score', 0):.2f}",
+                                "Fresh": f"{opp.get('freshness_multiplier', 1):.1f}x",
+                                "Conflu": f"{opp.get('confluence_multiplier', 1):.2f}x",
+                                "Factors": factors_str,
+                            })
+
+                        df = pd.DataFrame(table_data)
+                        st.dataframe(df, hide_index=True, use_container_width=True)
+
+                        st.caption(f"Showing {len(display_coins)} of {len(filtered_coins)} signals")
+
+                # Explanatory footer with formula
+                st.markdown("---")
+                st.caption(
+                    "**Score Formula:** Score = Base × Freshness × Confluence  \n"
+                    "**Base** = |Z-score of RSI| (statistical deviation)  \n"
+                    "**Freshness** = 1.0 (< 3 days) → 0.3 (14+ days)  \n"
+                    "**Confluence** = 1.0 + factor bonuses  \n\n"
+                    "**Factor Icons:**  \n"
+                    "📅 Weekly extreme (+0.2) | 📉 Divergence (+0.3/+0.5) | ⚡ Compressed vol (+0.2)  \n"
+                    "🔄 Sector turning (+0.1) | 💰 Funding aligned (+0.2) | 🎯 Decorrelation (+0.2)  \n\n"
+                    "_Higher score = stronger opportunity signal_"
+                )
+            else:
+                st.info("No opportunity scores available. Refresh to load data.")
+
 else:
     # Empty state with context
     st.markdown("---")
