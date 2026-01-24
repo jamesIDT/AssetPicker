@@ -7,11 +7,12 @@ from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.charts import build_rsi_scatter
+from src.charts import build_acceleration_quadrant, build_rsi_scatter
 from src.coingecko import CoinGeckoClient
 from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
+    calculate_rsi_acceleration,
     calculate_zscore,
     classify_signal_lifecycle,
     detect_divergence,
@@ -265,6 +266,11 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         if len(daily_closes) >= 57:  # 4 * 14 + 1
             volatility = detect_volatility_regime(daily_closes, period=14)
 
+        # Calculate RSI acceleration
+        acceleration = None
+        if len(daily_rsi_history) >= 3:
+            acceleration = calculate_rsi_acceleration(daily_rsi_history)
+
         # Calculate price change since signal started
         price_change_pct = None
         current_price = market.get("current_price", 0)
@@ -293,6 +299,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 "lifecycle_oversold": lifecycle_oversold,
                 "lifecycle_overbought": lifecycle_overbought,
                 "volatility": volatility,
+                "acceleration": acceleration,
                 "price_change_pct": price_change_pct,
                 "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
             }
@@ -835,6 +842,24 @@ if st.session_state.coin_data is not None:
                 st.dataframe(df, hide_index=True, use_container_width=True)
             else:
                 st.info("No sector data available.")
+
+        # Acceleration Quadrant section
+        with st.expander("📊 Acceleration Quadrant", expanded=False):
+            # Filter coins with both acceleration and volatility data
+            accel_coins = [
+                c for c in st.session_state.coin_data
+                if c.get("acceleration") is not None and c.get("volatility") is not None
+            ]
+
+            if accel_coins:
+                fig = build_acceleration_quadrant(accel_coins)
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "**Bottom-right quadrant** (Accelerating + Compressed volatility) = highest conviction. "
+                    "Watch for explosive moves in top-right."
+                )
+            else:
+                st.info("Acceleration data requires price history. Refresh to load.")
 else:
     # Empty state with context
     st.markdown("---")
