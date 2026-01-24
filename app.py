@@ -9,7 +9,12 @@ from dotenv import load_dotenv
 
 from src.charts import build_rsi_scatter
 from src.coingecko import CoinGeckoClient
-from src.indicators import calculate_divergence_score, detect_divergence, detect_regime
+from src.indicators import (
+    calculate_beta_adjusted_rsi,
+    calculate_divergence_score,
+    detect_divergence,
+    detect_regime,
+)
 from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
@@ -162,9 +167,12 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     # Build lookup for market data
     market_lookup = {c["id"]: c for c in market_data}
 
-    # Calculate BTC regime if BTC data is available
+    # Calculate BTC regime and beta reference data if BTC data is available
     btc_regime = None
     btc_weekly_rsi = None
+    btc_returns: list[float] = []
+    btc_daily_rsi: float | None = None
+
     if "bitcoin" in history:
         btc_hist = history["bitcoin"]
         btc_prices = btc_hist.get("prices", [])
@@ -173,6 +181,17 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         if btc_weekly_rsi_history:
             btc_weekly_rsi = btc_weekly_rsi_history[-1]
             btc_regime = detect_regime(btc_weekly_rsi_history)
+
+        # Calculate BTC daily returns for beta calculation
+        if len(btc_prices) >= 2:
+            for i in range(1, len(btc_prices)):
+                prev_price = btc_prices[i - 1][1]
+                curr_price = btc_prices[i][1]
+                if prev_price > 0:
+                    btc_returns.append((curr_price - prev_price) / prev_price)
+
+        # Get BTC daily RSI for expected RSI calculation
+        btc_daily_rsi = get_daily_rsi(btc_hist)
 
     result = []
     divergence_result = []
@@ -200,6 +219,26 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         mcap = market.get("market_cap", 0)
         vol_mcap_ratio = volume / mcap if mcap > 0 else 0
 
+        # Calculate beta-adjusted RSI
+        beta_info = None
+        prices = hist.get("prices", [])
+        if len(prices) >= 2 and len(btc_returns) >= 30 and btc_daily_rsi is not None:
+            coin_returns = []
+            for i in range(1, len(prices)):
+                prev_price = prices[i - 1][1]
+                curr_price = prices[i][1]
+                if prev_price > 0:
+                    coin_returns.append((curr_price - prev_price) / prev_price)
+
+            # Align lengths - use the shorter of the two
+            min_len = min(len(coin_returns), len(btc_returns))
+            if min_len >= 30:
+                aligned_coin_returns = coin_returns[-min_len:]
+                aligned_btc_returns = btc_returns[-min_len:]
+                beta_info = calculate_beta_adjusted_rsi(
+                    aligned_coin_returns, aligned_btc_returns, daily_rsi, btc_daily_rsi
+                )
+
         result.append(
             {
                 "symbol": market.get("symbol", "").upper(),
@@ -210,6 +249,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 "price": market.get("current_price", 0),
                 "volume": volume,
                 "market_cap": mcap,
+                "beta_info": beta_info,
             }
         )
 
