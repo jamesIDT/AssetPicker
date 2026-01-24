@@ -839,19 +839,20 @@ if st.session_state.coin_data is not None:
         btc_rsi = st.session_state.btc_weekly_rsi
         combined = regime.get("combined", "transition")
 
-        # Map regime to display properties
+        # Map regime to display properties (dark theme with colored accent borders)
+        # Format: (emoji_label, momentum_label, bg_color, border_color)
         regime_display = {
-            "bull_rising": ("🐂 Bull ↗", "Rising", "#e8f5e9"),
-            "bull_falling": ("🐂 Bull ↘", "Cooling", "#f1f8e9"),
-            "bull_neutral": ("🐂 Bull →", "Steady", "#f1f8e9"),
-            "bear_rising": ("🐻 Bear ↗", "Recovering", "#fff3e0"),
-            "bear_falling": ("🐻 Bear ↘", "Falling", "#ffebee"),
-            "bear_neutral": ("🐻 Bear →", "Steady", "#ffebee"),
-            "transition": ("⚖️ Transition", "", "#fffde7"),
+            "bull_rising": ("🐂 Bull ↗", "Rising", "rgba(76, 175, 80, 0.15)", "#4CAF50"),
+            "bull_falling": ("🐂 Bull ↘", "Cooling", "rgba(76, 175, 80, 0.10)", "#4CAF50"),
+            "bull_neutral": ("🐂 Bull →", "Steady", "rgba(76, 175, 80, 0.10)", "#4CAF50"),
+            "bear_rising": ("🐻 Bear ↗", "Recovering", "rgba(244, 67, 54, 0.10)", "#f44336"),
+            "bear_falling": ("🐻 Bear ↘", "Falling", "rgba(244, 67, 54, 0.15)", "#f44336"),
+            "bear_neutral": ("🐻 Bear →", "Steady", "rgba(244, 67, 54, 0.10)", "#f44336"),
+            "transition": ("⚖️ Transition", "", "rgba(255, 176, 32, 0.12)", "#FFB020"),
         }
 
-        emoji_label, momentum_label, bg_color = regime_display.get(
-            combined, ("⚖️ Transition", "", "#fffde7")
+        emoji_label, momentum_label, bg_color, border_color = regime_display.get(
+            combined, ("⚖️ Transition", "", "rgba(255, 176, 32, 0.12)", "#FFB020")
         )
 
         banner_text = emoji_label
@@ -864,12 +865,14 @@ if st.session_state.coin_data is not None:
             f"""
             <div style="
                 background-color: {bg_color};
+                border-left: 3px solid {border_color};
                 padding: 8px 16px;
-                border-radius: 4px;
+                border-radius: 2px;
                 margin-bottom: 12px;
                 text-align: center;
                 font-size: 1.1em;
                 font-weight: 500;
+                color: #FFFFE3;
             ">
                 {banner_text}
             </div>
