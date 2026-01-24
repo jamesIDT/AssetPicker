@@ -936,6 +936,39 @@ if st.session_state.coin_data is not None:
             ]
 
             if scored_coins:
+                # Shared filters ABOVE tabs (persist when switching between Long/Short)
+                all_sectors = list(set(c.get("sector", "Other") for c in scored_coins))
+                all_sectors.sort()
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    sector_filter = st.selectbox(
+                        "Sector",
+                        ["All"] + all_sectors,
+                        key="opp_sector_shared",
+                    )
+
+                with col2:
+                    min_score = st.slider(
+                        "Min Score",
+                        min_value=0.0,
+                        max_value=5.0,
+                        value=0.0,
+                        step=0.5,
+                        key="opp_min_score_shared",
+                    )
+
+                with col3:
+                    max_age = st.slider(
+                        "Max Age (days)",
+                        min_value=1,
+                        max_value=14,
+                        value=14,
+                        step=1,
+                        key="opp_max_age_shared",
+                    )
+
                 # Signal direction tabs
                 long_tab, short_tab = st.tabs(["Long Opportunities (Oversold)", "Short Opportunities (Overbought)"])
 
@@ -953,41 +986,6 @@ if st.session_state.coin_data is not None:
                         if not direction_coins:
                             st.info(f"No {tab_name.lower()} signals currently.")
                             continue
-
-                        # Quick filters in columns
-                        col1, col2, col3 = st.columns(3)
-
-                        with col1:
-                            # Sector filter
-                            sectors_in_direction = list(set(c.get("sector", "Other") for c in direction_coins))
-                            sectors_in_direction.sort()
-                            sector_filter = st.selectbox(
-                                "Sector",
-                                ["All"] + sectors_in_direction,
-                                key=f"opp_sector_{direction}",
-                            )
-
-                        with col2:
-                            # Min score slider
-                            min_score = st.slider(
-                                "Min Score",
-                                min_value=0.0,
-                                max_value=5.0,
-                                value=0.0,
-                                step=0.5,
-                                key=f"opp_min_score_{direction}",
-                            )
-
-                        with col3:
-                            # Max age slider
-                            max_age = st.slider(
-                                "Max Age (days)",
-                                min_value=1,
-                                max_value=14,
-                                value=14,
-                                step=1,
-                                key=f"opp_max_age_{direction}",
-                            )
 
                         # Apply filters
                         filtered_coins = direction_coins
