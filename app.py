@@ -165,10 +165,27 @@ st.markdown(
         color: var(--text-0) !important;
     }
 
-    /* Expander header/toggle */
-    .streamlit-expanderHeader {
+    /* Expander header/toggle - fix arrow overlap */
+    .streamlit-expanderHeader,
+    [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
         color: var(--text-0) !important;
         font-weight: 500 !important;
+    }
+
+    /* Fix expander icon positioning */
+    [data-testid="stExpander"] svg {
+        min-width: 1rem !important;
+        margin-right: 0.5rem !important;
+    }
+
+    [data-testid="stExpander"] details > summary {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+
+    [data-testid="stExpander"] details > summary > span {
+        flex: 1 !important;
     }
 
     /* =================================================================
@@ -909,10 +926,6 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi
 
 
-# Main UI
-st.title(f"Crypto RSI Screener")
-st.caption("Data from CoinGecko Pro API")
-
 # Load watchlist with error handling
 try:
     watchlist = load_watchlist()
@@ -925,19 +938,34 @@ except json.JSONDecodeError as e:
 
 coin_ids = [c["id"] for c in watchlist]
 
-# Refresh button - primary style
-if st.button("Refresh Data", type="primary"):
-    with st.spinner("Fetching data from CoinGecko..."):
-        try:
-            data, divergence_data, failed_count, btc_regime, btc_weekly_rsi = asyncio.run(fetch_all_data(coin_ids))
-            st.session_state.coin_data = data
-            st.session_state.divergence_data = divergence_data
-            st.session_state.last_updated = datetime.now()
-            st.session_state.failed_coins = failed_count
-            st.session_state.btc_regime = btc_regime
-            st.session_state.btc_weekly_rsi = btc_weekly_rsi
-        except Exception as e:
-            st.error(f"Failed to fetch data: {e}")
+# === HEADER ROW: Title + Refresh Button ===
+header_col1, header_col2 = st.columns([4, 1])
+with header_col1:
+    st.title("Crypto RSI Screener")
+with header_col2:
+    st.write("")  # Spacer for vertical alignment
+    if st.button("Refresh Data", type="primary", use_container_width=True):
+        with st.spinner("Fetching data from CoinGecko..."):
+            try:
+                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi = asyncio.run(fetch_all_data(coin_ids))
+                st.session_state.coin_data = data
+                st.session_state.divergence_data = divergence_data
+                st.session_state.last_updated = datetime.now()
+                st.session_state.failed_coins = failed_count
+                st.session_state.btc_regime = btc_regime
+                st.session_state.btc_weekly_rsi = btc_weekly_rsi
+            except Exception as e:
+                st.error(f"Failed to fetch data: {e}")
+
+# === SUB-HEADER: Data source + timestamp ===
+subheader_parts = ["Data from CoinGecko Pro API"]
+if st.session_state.last_updated:
+    relative = format_relative_time(st.session_state.last_updated)
+    full_time = st.session_state.last_updated.strftime("%Y-%m-%d %H:%M:%S")
+    subheader_parts.append(f"Updated {relative} ({full_time})")
+    if st.session_state.failed_coins > 0:
+        subheader_parts.append(f"{st.session_state.failed_coins} coin(s) unavailable")
+st.caption(" · ".join(subheader_parts))
 
 # Display chart or message
 if st.session_state.coin_data is not None:
@@ -1047,15 +1075,6 @@ if st.session_state.coin_data is not None:
             - **Resolving**: Moving back toward neutral
             """)
 
-    # Show timestamp with relative time and failed count
-    if st.session_state.last_updated:
-        relative = format_relative_time(st.session_state.last_updated)
-        full_time = st.session_state.last_updated.strftime("%Y-%m-%d %H:%M:%S")
-        status_text = f"Updated {relative}"
-        if st.session_state.failed_coins > 0:
-            status_text += f" | {st.session_state.failed_coins} coin(s) unavailable"
-        st.caption(f"{status_text} ({full_time})")
-
     # Handle empty data gracefully
     if not st.session_state.coin_data:
         st.warning("No valid coin data available. Check your watchlist configuration.")
@@ -1070,14 +1089,16 @@ if st.session_state.coin_data is not None:
             f"{sector} ({count})" for sector, count in sorted(sector_counts.items())
         ]
 
-        # Sector filter dropdown
-        col_filter, col_count = st.columns([3, 1])
-        with col_filter:
+        # === CONTROLS ROW: Sector | Coins | Color Mode | Z-Score ===
+        ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns([2, 1, 2, 2])
+
+        with ctrl_col1:
             selected = st.selectbox(
-                "Filter by Sector",
+                "Sector",
                 sector_options,
                 index=0,
                 key="sector_filter",
+                label_visibility="collapsed",
             )
             # Extract sector name (remove count suffix)
             if selected == "All Sectors":
@@ -1100,23 +1121,25 @@ if st.session_state.coin_data is not None:
             filtered_coin_data = st.session_state.coin_data
             filtered_divergence_data = st.session_state.divergence_data
 
-        with col_count:
-            st.metric("Coins", len(filtered_coin_data))
+        with ctrl_col2:
+            st.markdown(
+                f'<div style="text-align: center; padding: 0.5rem;"><span style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">COINS</span><br><span style="font-size: 1.5rem; font-weight: 600; color: var(--text-0);">{len(filtered_coin_data)}</span></div>',
+                unsafe_allow_html=True,
+            )
 
-        # Color mode toggle
-        color_mode = st.radio(
-            "Color Mode",
-            ["Weekly RSI", "Beta Residual"],
-            horizontal=True,
-            help="Weekly RSI: Green=oversold, Red=overbought. Beta Residual: Green=outperforming BTC, Red=underperforming.",
-        )
+        with ctrl_col3:
+            color_mode = st.radio(
+                "Color Mode",
+                ["Weekly RSI", "Beta Residual"],
+                horizontal=True,
+                label_visibility="collapsed",
+            )
 
-        # Z-score labels toggle
-        show_zscore = st.checkbox(
-            "Show Z-Score Labels",
-            value=False,
-            help="Display statistical z-score next to coin symbols for extreme readings (|z| > 1.5)",
-        )
+        with ctrl_col4:
+            show_zscore = st.checkbox(
+                "Show Z-Score Labels",
+                value=False,
+            )
 
         # Extract beta residuals for beta mode
         beta_residuals = None
@@ -1148,8 +1171,8 @@ if st.session_state.coin_data is not None:
             unsafe_allow_html=True,
         )
 
-        # Hero Charts Row - RSI Scatter (65%) | Acceleration Quadrant (35%)
-        chart_col1, chart_col2 = st.columns([0.65, 0.35])
+        # Hero Charts Row - Equal width columns
+        chart_col1, chart_col2 = st.columns(2)
 
         with chart_col1:
             # RSI Scatter panel

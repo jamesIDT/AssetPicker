@@ -559,7 +559,7 @@ def build_rsi_scatter(
         plot_bgcolor="rgba(74, 79, 94, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
-        height=800,
+        height=600,
     )
 
     return fig
@@ -784,7 +784,7 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
         plot_bgcolor="rgba(74, 79, 94, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
-        height=500,
+        height=600,
     )
 
     return fig
