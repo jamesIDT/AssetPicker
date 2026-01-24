@@ -18,3 +18,4 @@ build/
 
 # Planning docs (separate concern)
 .planning/
+tmpclaude-*

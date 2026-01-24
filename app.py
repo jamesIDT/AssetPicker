@@ -17,11 +17,46 @@ load_dotenv()
 # Page configuration
 st.set_page_config(page_title="Crypto RSI Screener", layout="wide")
 
+# Custom CSS for chart container
+st.markdown(
+    """
+    <style>
+    /* Style the primary button */
+    [data-testid="stButton"] button[kind="primary"] {
+        background-color: #4CAF50;
+        border-color: #4CAF50;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Initialize session state
 if "coin_data" not in st.session_state:
     st.session_state.coin_data = None
 if "last_updated" not in st.session_state:
     st.session_state.last_updated = None
+if "failed_coins" not in st.session_state:
+    st.session_state.failed_coins = 0
+
+
+def format_relative_time(dt: datetime) -> str:
+    """Format datetime as relative time (e.g., '5 min ago')."""
+    now = datetime.now()
+    diff = now - dt
+    seconds = int(diff.total_seconds())
+
+    if seconds < 60:
+        return "just now"
+    elif seconds < 3600:
+        minutes = seconds // 60
+        return f"{minutes} min ago"
+    elif seconds < 86400:
+        hours = seconds // 3600
+        return f"{hours}h ago"
+    else:
+        days = seconds // 86400
+        return f"{days}d ago"
 
 
 def load_watchlist() -> list[dict]:
@@ -44,7 +79,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], int]:
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
         market_data = await client.get_coins_market_data(coin_ids)
-        history = await client.get_coins_history(coin_ids, days=90)
+        history = await client.get_coins_history(coin_ids, days=120)
 
     # Build lookup for market data
     market_lookup = {c["id"]: c for c in market_data}
@@ -106,41 +141,56 @@ except json.JSONDecodeError as e:
 
 coin_ids = [c["id"] for c in watchlist]
 
-# Refresh button
-if st.button("Refresh Data"):
+# Refresh button - primary style
+if st.button("Refresh Data", type="primary"):
     with st.spinner("Fetching data from CoinGecko..."):
         try:
             data, failed_count = asyncio.run(fetch_all_data(coin_ids))
             st.session_state.coin_data = data
             st.session_state.last_updated = datetime.now()
-            if failed_count > 0:
-                st.warning(f"Could not fetch data for {failed_count} coin(s)")
+            st.session_state.failed_coins = failed_count
         except Exception as e:
             st.error(f"Failed to fetch data: {e}")
 
 # Display chart or message
 if st.session_state.coin_data is not None:
-    # Show timestamp above chart
+    # Show timestamp with relative time and failed count
     if st.session_state.last_updated:
-        st.caption(f"Last updated: {st.session_state.last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+        relative = format_relative_time(st.session_state.last_updated)
+        full_time = st.session_state.last_updated.strftime("%Y-%m-%d %H:%M:%S")
+        status_text = f"Updated {relative}"
+        if st.session_state.failed_coins > 0:
+            status_text += f" | {st.session_state.failed_coins} coin(s) unavailable"
+        st.caption(f"{status_text} ({full_time})")
 
     # Handle empty data gracefully
     if not st.session_state.coin_data:
         st.warning("No valid coin data available. Check your watchlist configuration.")
     else:
+        # Build and display chart - responsive square
         fig = build_rsi_scatter(st.session_state.coin_data)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 
-        # Opportunity and Caution lists
+        # Signal lists with star explanation
+        st.markdown("---")
+        st.caption("Coins at RSI extremes (below 30 or above 70). ⭐ = weekly RSI also at extreme.")
+
+        # Gather data
+        opportunities = [
+            c for c in st.session_state.coin_data if c["daily_rsi"] < 30
+        ]
+        opportunities.sort(key=lambda c: c["daily_rsi"])
+
+        caution = [
+            c for c in st.session_state.coin_data if c["daily_rsi"] > 70
+        ]
+        caution.sort(key=lambda c: c["daily_rsi"], reverse=True)
+
+        # Display in balanced columns
         col1, col2 = st.columns(2)
 
         with col1:
-            opportunities = [
-                c for c in st.session_state.coin_data if c["daily_rsi"] < 30
-            ]
-            opportunities.sort(key=lambda c: c["daily_rsi"])  # Most oversold first
-            st.subheader(f"🟢 Potential Opportunities ({len(opportunities)})")
-
+            st.subheader(f"Potential Opportunities ({len(opportunities)})")
             if opportunities:
                 for coin in opportunities:
                     star = " ⭐" if coin["weekly_rsi"] < 30 else ""
@@ -149,15 +199,10 @@ if st.session_state.coin_data is not None:
                         f"Weekly: {coin['weekly_rsi']:.1f}{star}"
                     )
             else:
-                st.write("None currently")
+                st.markdown("_No oversold coins currently_")
 
         with col2:
-            caution = [
-                c for c in st.session_state.coin_data if c["daily_rsi"] > 70
-            ]
-            caution.sort(key=lambda c: c["daily_rsi"], reverse=True)  # Most overbought first
-            st.subheader(f"🔴 Exercise Caution ({len(caution)})")
-
+            st.subheader(f"Exercise Caution ({len(caution)})")
             if caution:
                 for coin in caution:
                     star = " ⭐" if coin["weekly_rsi"] > 70 else ""
@@ -166,6 +211,23 @@ if st.session_state.coin_data is not None:
                         f"Weekly: {coin['weekly_rsi']:.1f}{star}"
                     )
             else:
-                st.write("None currently")
+                st.markdown("_No overbought coins currently_")
 else:
-    st.info("Click Refresh to load data")
+    # Empty state with context
+    st.markdown("---")
+    st.markdown(
+        """
+        ### How to use this screener
+
+        This tool visualizes RSI (Relative Strength Index) signals across your crypto watchlist:
+
+        - **X-axis:** Daily RSI (0-100) - below 30 is oversold, above 70 is overbought
+        - **Y-axis:** Liquidity ratio (Volume / Market Cap) - higher means more active trading
+        - **Color:** Weekly RSI - green is oversold, red is overbought
+
+        The chart is divided into four quadrants to help you quickly identify market conditions.
+
+        **Click "Refresh Data" above to load your watchlist.**
+        """
+    )
+    st.caption(f"Tracking {len(coin_ids)} coins from watchlist.json")

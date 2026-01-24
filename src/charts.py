@@ -1,6 +1,29 @@
 """Plotly chart builders for RSI scatter visualization."""
 
+import math
+
 import plotly.graph_objects as go
+
+# Quadrant labels and descriptions for the 2x2 grid
+# Based on RSI (x-axis) and Liquidity (y-axis) combinations
+QUADRANT_LABELS = {
+    "top_left": {
+        "title": "Capitulation",
+        "desc": "Oversold + High Activity",
+    },
+    "top_right": {
+        "title": "Peak Momentum",
+        "desc": "Overbought + High Activity",
+    },
+    "bottom_left": {
+        "title": "Forgotten",
+        "desc": "Oversold + Low Activity",
+    },
+    "bottom_right": {
+        "title": "Quiet Pump",
+        "desc": "Overbought + Low Activity",
+    },
+}
 
 
 def format_currency(value: float) -> str:
@@ -33,13 +56,112 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
     Returns:
         Plotly Figure object with the scatter plot
     """
+    # Calculate y-axis range from data or use defaults
+    if coin_data:
+        vol_mcap_values = [c["vol_mcap_ratio"] for c in coin_data if c["vol_mcap_ratio"] > 0]
+        if vol_mcap_values:
+            min_vol = min(vol_mcap_values)
+            max_vol = max(vol_mcap_values)
+            # Add padding and round to nice log values
+            log_min = math.floor(math.log10(min_vol))
+            log_max = math.ceil(math.log10(max_vol))
+            y_range = [10 ** log_min, 10 ** log_max]
+            # Calculate midpoint in log space for quadrant division
+            log_mid = (log_min + log_max) / 2
+            y_mid = 10 ** log_mid
+        else:
+            y_range = [0.001, 10]
+            y_mid = 0.1
+            log_min, log_max, log_mid = -3, 1, -1
+    else:
+        y_range = [0.001, 10]
+        y_mid = 0.1
+        log_min, log_max, log_mid = -3, 1, -1
+
+    fig = go.Figure()
+
+    # Add quadrant background shading (2x2 grid split at RSI=50 and log midpoint)
+    # Top-left: Capitulation (green tint - opportunity)
+    fig.add_shape(
+        type="rect", x0=0, x1=50, y0=y_mid, y1=y_range[1],
+        fillcolor="rgba(76, 175, 80, 0.08)", line_width=0, layer="below"
+    )
+    # Top-right: Peak Momentum (red tint - caution)
+    fig.add_shape(
+        type="rect", x0=50, x1=100, y0=y_mid, y1=y_range[1],
+        fillcolor="rgba(244, 67, 54, 0.08)", line_width=0, layer="below"
+    )
+    # Bottom-left: Forgotten (neutral/gray tint)
+    fig.add_shape(
+        type="rect", x0=0, x1=50, y0=y_range[0], y1=y_mid,
+        fillcolor="rgba(158, 158, 158, 0.06)", line_width=0, layer="below"
+    )
+    # Bottom-right: Quiet Pump (orange tint - warning)
+    fig.add_shape(
+        type="rect", x0=50, x1=100, y0=y_range[0], y1=y_mid,
+        fillcolor="rgba(255, 152, 0, 0.08)", line_width=0, layer="below"
+    )
+
+    # Add quadrant divider lines
+    fig.add_shape(
+        type="line", x0=50, x1=50, y0=y_range[0], y1=y_range[1],
+        line={"color": "rgba(0,0,0,0.15)", "width": 1, "dash": "dot"}
+    )
+    fig.add_shape(
+        type="line", x0=0, x1=100, y0=y_mid, y1=y_mid,
+        line={"color": "rgba(0,0,0,0.15)", "width": 1, "dash": "dot"}
+    )
+
+    # Add quadrant labels - x as RSI value, y as domain fraction
+    label_font = {"size": 36, "color": "rgba(0,0,0,0.10)", "family": "Arial Black"}
+    desc_font = {"size": 18, "color": "rgba(0,0,0,0.10)"}
+
+    # Top-left: Capitulation (RSI 0-50, top half)
+    fig.add_annotation(
+        x=25, y=0.75, text=QUADRANT_LABELS["top_left"]["title"],
+        showarrow=False, font=label_font, xref="x", yref="y domain"
+    )
+    fig.add_annotation(
+        x=25, y=0.65, text=QUADRANT_LABELS["top_left"]["desc"],
+        showarrow=False, font=desc_font, xref="x", yref="y domain"
+    )
+
+    # Top-right: Peak Momentum (RSI 50-100, top half)
+    fig.add_annotation(
+        x=75, y=0.75, text=QUADRANT_LABELS["top_right"]["title"],
+        showarrow=False, font=label_font, xref="x", yref="y domain"
+    )
+    fig.add_annotation(
+        x=75, y=0.65, text=QUADRANT_LABELS["top_right"]["desc"],
+        showarrow=False, font=desc_font, xref="x", yref="y domain"
+    )
+
+    # Bottom-left: Forgotten (RSI 0-50, bottom half)
+    fig.add_annotation(
+        x=25, y=0.35, text=QUADRANT_LABELS["bottom_left"]["title"],
+        showarrow=False, font=label_font, xref="x", yref="y domain"
+    )
+    fig.add_annotation(
+        x=25, y=0.25, text=QUADRANT_LABELS["bottom_left"]["desc"],
+        showarrow=False, font=desc_font, xref="x", yref="y domain"
+    )
+
+    # Bottom-right: Quiet Pump (RSI 50-100, bottom half)
+    fig.add_annotation(
+        x=75, y=0.35, text=QUADRANT_LABELS["bottom_right"]["title"],
+        showarrow=False, font=label_font, xref="x", yref="y domain"
+    )
+    fig.add_annotation(
+        x=75, y=0.25, text=QUADRANT_LABELS["bottom_right"]["desc"],
+        showarrow=False, font=desc_font, xref="x", yref="y domain"
+    )
+
     if not coin_data:
-        fig = go.Figure()
         fig.update_layout(
             title="RSI vs Liquidity",
             xaxis_title="Daily RSI",
-            yaxis_title="Volume / Market Cap",
-            annotations=[
+            yaxis_title="Liquidity (Vol/MCap)",
+            annotations=fig.layout.annotations + (
                 {
                     "text": "No data available",
                     "xref": "paper",
@@ -48,8 +170,8 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
                     "y": 0.5,
                     "showarrow": False,
                     "font": {"size": 16},
-                }
-            ],
+                },
+            ),
         )
         return fig
 
@@ -70,16 +192,17 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
         for c in coin_data
     ]
 
-    fig = go.Figure(
-        data=go.Scatter(
+    fig.add_trace(
+        go.Scatter(
             x=daily_rsi,
             y=vol_mcap,
             mode="markers+text",
             text=symbols,
             textposition="top center",
+            textfont={"size": 9},
             customdata=customdata,
             marker={
-                "size": 12,
+                "size": 10,
                 "color": weekly_rsi,
                 "colorscale": "RdYlGn_r",
                 "cmin": 0,
@@ -87,7 +210,9 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
                 "colorbar": {
                     "title": "Weekly RSI",
                     "tickvals": [0, 25, 50, 75, 100],
+                    "len": 0.8,
                 },
+                "line": {"width": 1, "color": "rgba(0,0,0,0.3)"},
             },
             hovertemplate=(
                 "<b>%{customdata[0]}</b> (%{text})<br>"
@@ -102,35 +227,26 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
     )
 
     fig.update_layout(
-        title="RSI vs Liquidity",
+        title="",
         xaxis_title="Daily RSI",
-        yaxis_title="Volume / Market Cap",
+        yaxis_title="Liquidity (Vol/MCap)",
         xaxis={
             "range": [0, 100],
-            "dtick": 10,
+            "dtick": 25,
+            "gridcolor": "rgba(0,0,0,0.05)",
+            "zeroline": False,
         },
         yaxis={
             "type": "log",
+            "range": [log_min, log_max],
+            "gridcolor": "rgba(0,0,0,0.05)",
+            "zeroline": False,
         },
         showlegend=False,
-    )
-
-    # Add zone shading for oversold (green, 0-30) and overbought (red, 70-100)
-    fig.add_vrect(
-        x0=0,
-        x1=30,
-        fillcolor="green",
-        opacity=0.1,
-        layer="below",
-        line_width=0,
-    )
-    fig.add_vrect(
-        x0=70,
-        x1=100,
-        fillcolor="red",
-        opacity=0.1,
-        layer="below",
-        line_width=0,
+        plot_bgcolor="white",
+        margin={"l": 60, "r": 100, "t": 30, "b": 60},
+        autosize=True,
+        height=800,
     )
 
     return fig
