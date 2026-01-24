@@ -686,6 +686,13 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("No extreme RSI signals currently active.")
+
+            # Legend explaining badges
+            st.caption(
+                "**Signal Stages:** 🆕 Fresh (1-2 days) | ✓ Confirmed (3-5 days) | ⏳ Extended (6+ days) | ↗↘ Resolving (exiting zone)  \n"
+                "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
+                "**Conviction:** ★★★ Fresh + Compressed = Highest conviction | ★★ Confirmed or Fresh + Normal | ★ Other"
+            )
 else:
     # Empty state with context
     st.markdown("---")
