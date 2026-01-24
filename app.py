@@ -18,7 +18,7 @@ from src.indicators import (
     detect_regime,
     detect_volatility_regime,
 )
-from src.sectors import calculate_sector_rsi, get_sector
+from src.sectors import calculate_sector_momentum, calculate_sector_rsi, get_sector
 from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
@@ -54,6 +54,8 @@ if "btc_regime" not in st.session_state:
     st.session_state.btc_regime = None
 if "btc_weekly_rsi" not in st.session_state:
     st.session_state.btc_weekly_rsi = None
+if "selected_sector" not in st.session_state:
+    st.session_state.selected_sector = "All Sectors"
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -292,6 +294,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 "lifecycle_overbought": lifecycle_overbought,
                 "volatility": volatility,
                 "price_change_pct": price_change_pct,
+                "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
             }
         )
 
@@ -487,6 +490,49 @@ if st.session_state.coin_data is not None:
     if not st.session_state.coin_data:
         st.warning("No valid coin data available. Check your watchlist configuration.")
     else:
+        # Build sector options for filter dropdown
+        sector_counts = {}
+        for coin in st.session_state.coin_data:
+            sector = coin.get("sector", "Other")
+            sector_counts[sector] = sector_counts.get(sector, 0) + 1
+
+        sector_options = ["All Sectors"] + [
+            f"{sector} ({count})" for sector, count in sorted(sector_counts.items())
+        ]
+
+        # Sector filter dropdown
+        col_filter, col_count = st.columns([3, 1])
+        with col_filter:
+            selected = st.selectbox(
+                "Filter by Sector",
+                sector_options,
+                index=0,
+                key="sector_filter",
+            )
+            # Extract sector name (remove count suffix)
+            if selected == "All Sectors":
+                st.session_state.selected_sector = "All Sectors"
+            else:
+                st.session_state.selected_sector = selected.split(" (")[0]
+
+        # Filter coin data if sector selected
+        if st.session_state.selected_sector != "All Sectors":
+            filtered_coin_data = [
+                c for c in st.session_state.coin_data
+                if c.get("sector") == st.session_state.selected_sector
+            ]
+            filtered_divergence_data = [
+                st.session_state.divergence_data[i]
+                for i, c in enumerate(st.session_state.coin_data)
+                if c.get("sector") == st.session_state.selected_sector
+            ]
+        else:
+            filtered_coin_data = st.session_state.coin_data
+            filtered_divergence_data = st.session_state.divergence_data
+
+        with col_count:
+            st.metric("Coins", len(filtered_coin_data))
+
         # Color mode toggle
         color_mode = st.radio(
             "Color Mode",
@@ -506,7 +552,7 @@ if st.session_state.coin_data is not None:
         beta_residuals = None
         if color_mode == "Beta Residual":
             beta_residuals = []
-            for c in st.session_state.coin_data:
+            for c in filtered_coin_data:
                 beta_info = c.get("beta_info")
                 if beta_info is not None:
                     beta_residuals.append(beta_info.get("residual", 0))
@@ -515,7 +561,7 @@ if st.session_state.coin_data is not None:
 
         # Extract sector data for tooltips
         sector_data = []
-        for c in st.session_state.coin_data:
+        for c in filtered_coin_data:
             sector_data.append({
                 "sector": c.get("sector", "Other"),
                 "sector_rank": c.get("sector_rank"),
@@ -523,13 +569,13 @@ if st.session_state.coin_data is not None:
 
         # Extract zscore data for labels and tooltips
         zscore_data = []
-        for c in st.session_state.coin_data:
+        for c in filtered_coin_data:
             zscore_data.append(c.get("zscore_info"))
 
         # Build and display chart - responsive square
         fig = build_rsi_scatter(
-            st.session_state.coin_data,
-            st.session_state.divergence_data,
+            filtered_coin_data,
+            filtered_divergence_data,
             beta_data=beta_residuals,
             color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
             sector_data=sector_data,
@@ -544,12 +590,12 @@ if st.session_state.coin_data is not None:
 
         # Gather data
         opportunities = [
-            c for c in st.session_state.coin_data if c["daily_rsi"] < 30
+            c for c in filtered_coin_data if c["daily_rsi"] < 30
         ]
         opportunities.sort(key=lambda c: c["daily_rsi"])
 
         caution = [
-            c for c in st.session_state.coin_data if c["daily_rsi"] > 70
+            c for c in filtered_coin_data if c["daily_rsi"] > 70
         ]
         caution.sort(key=lambda c: c["daily_rsi"], reverse=True)
 
@@ -693,6 +739,102 @@ if st.session_state.coin_data is not None:
                 "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
                 "**Conviction:** ★★★ Fresh + Compressed = Highest conviction | ★★ Confirmed or Fresh + Normal | ★ Other"
             )
+
+        # Sector Momentum section
+        with st.expander("📊 Sector Momentum", expanded=False):
+            import plotly.graph_objects as go
+
+            # Build coin data for sector momentum calculation
+            coins_for_momentum = []
+            for coin in st.session_state.coin_data:
+                if coin.get("daily_rsi") is not None and coin.get("id"):
+                    coins_for_momentum.append({
+                        "id": coin["id"],
+                        "daily_rsi": coin["daily_rsi"],
+                        "market_cap": coin.get("market_cap", 0),
+                        "rsi_history": coin.get("rsi_history", []),
+                    })
+
+            sector_momentum = calculate_sector_momentum(coins_for_momentum)
+
+            if sector_momentum:
+                # Sort sectors by RSI (most oversold at top)
+                sorted_sectors = sorted(
+                    sector_momentum.items(),
+                    key=lambda x: x[1]["current_rsi"]
+                )
+
+                # Build bar chart data
+                sector_names = [s[0] for s in sorted_sectors]
+                rsi_values = [s[1]["current_rsi"] for s in sorted_sectors]
+                momentum_arrows = [s[1]["momentum_arrow"] for s in sorted_sectors]
+
+                # Color based on RSI zone
+                colors = []
+                for rsi in rsi_values:
+                    if rsi < 35:
+                        colors.append("#4CAF50")  # Green - oversold
+                    elif rsi > 65:
+                        colors.append("#f44336")  # Red - overbought
+                    else:
+                        colors.append("#FFC107")  # Yellow - neutral
+
+                # Create horizontal bar chart
+                fig = go.Figure()
+
+                fig.add_trace(go.Bar(
+                    y=sector_names,
+                    x=rsi_values,
+                    orientation="h",
+                    marker_color=colors,
+                    text=[f"{arrow}" for arrow in momentum_arrows],
+                    textposition="outside",
+                    textfont=dict(size=14),
+                    hovertemplate="<b>%{y}</b><br>RSI: %{x:.1f}<extra></extra>",
+                ))
+
+                # Add vertical line at x=50 (neutral)
+                fig.add_vline(x=50, line_dash="dash", line_color="gray", opacity=0.5)
+
+                fig.update_layout(
+                    title="Sector RSI (Most Oversold at Top)",
+                    xaxis_title="RSI",
+                    yaxis_title="",
+                    xaxis=dict(range=[0, 100]),
+                    height=max(300, len(sector_names) * 40),
+                    margin=dict(l=20, r=100, t=40, b=40),
+                    showlegend=False,
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Check for rotation signals
+                rotation_sectors = [
+                    name for name, data in sorted_sectors
+                    if data.get("is_rotation_signal")
+                ]
+                if rotation_sectors:
+                    st.info(f"🔄 **Rotation signals:** {', '.join(rotation_sectors)}")
+
+                # Data table
+                import pandas as pd
+                table_data = []
+                for name, data in sorted_sectors:
+                    change_str = f"{data['change_7d']:+.1f}" if data["change_7d"] is not None else "—"
+                    days_bottom = data["days_since_bottom"] if data["days_since_bottom"] is not None else "—"
+                    table_data.append({
+                        "Sector": name,
+                        "RSI": f"{data['current_rsi']:.1f}",
+                        "7D Δ": change_str,
+                        "Momentum": data["momentum_arrow"],
+                        "Days Since Bottom": days_bottom,
+                        "Coins": data["count"],
+                    })
+
+                df = pd.DataFrame(table_data)
+                st.dataframe(df, hide_index=True, use_container_width=True)
+            else:
+                st.info("No sector data available.")
 else:
     # Empty state with context
     st.markdown("---")
