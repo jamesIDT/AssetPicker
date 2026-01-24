@@ -625,6 +625,95 @@ def calculate_divergence_score(
     return 0
 
 
+def detect_funding_confluence(
+    daily_rsi: float, funding_rate: float | None
+) -> dict:
+    """
+    Detect confluence between RSI extremes and funding rate direction.
+
+    Args:
+        daily_rsi: Daily RSI value
+        funding_rate: Funding rate as decimal (can be None)
+
+    Returns:
+        Dict with:
+        - aligned: bool (True if funding confirms RSI signal)
+        - type: "bullish" | "bearish" | None
+        - strength: "strong" | "moderate" | "weak" | None
+    """
+    if funding_rate is None:
+        return {"aligned": False, "type": None, "strength": None}
+
+    aligned = False
+    conf_type: str | None = None
+    strength: str | None = None
+
+    # Bullish: RSI oversold (< 30) AND funding negative (shorts paying longs)
+    if daily_rsi < 30 and funding_rate < 0:
+        aligned = True
+        conf_type = "bullish"
+    # Bearish: RSI overbought (> 70) AND funding positive (longs paying shorts)
+    elif daily_rsi > 70 and funding_rate > 0:
+        aligned = True
+        conf_type = "bearish"
+
+    # Determine strength based on funding intensity
+    if aligned:
+        abs_funding = abs(funding_rate)
+        if abs_funding > 0.0005:
+            strength = "strong"
+        elif abs_funding > 0.0002:
+            strength = "moderate"
+        else:
+            strength = "weak"
+
+    return {"aligned": aligned, "type": conf_type, "strength": strength}
+
+
+def get_confluence_factors(
+    daily_rsi: float,
+    weekly_rsi: float | None,
+    funding_rate: float | None,
+    has_divergence: bool = False,
+    volatility_compressed: bool = False,
+    sector_turning: bool = False,
+) -> dict:
+    """
+    Aggregate all confluence factors for opportunity scoring.
+
+    Args:
+        daily_rsi: Current daily RSI
+        weekly_rsi: Current weekly RSI (can be None)
+        funding_rate: Funding rate as decimal (can be None)
+        has_divergence: True if divergence detected
+        volatility_compressed: True if volatility regime is compressed
+        sector_turning: True if sector RSI is turning
+
+    Returns:
+        Dict matching calculate_opportunity_score expected inputs:
+        - weekly_extreme: bool
+        - divergence: bool
+        - funding_aligned: bool
+        - volatility_compressed: bool
+        - sector_turning: bool
+    """
+    # Weekly extreme check
+    weekly_extreme = False
+    if weekly_rsi is not None:
+        weekly_extreme = weekly_rsi < 30 or weekly_rsi > 70
+
+    # Funding alignment check
+    funding_conf = detect_funding_confluence(daily_rsi, funding_rate)
+
+    return {
+        "weekly_extreme": weekly_extreme,
+        "divergence": has_divergence,
+        "funding_aligned": funding_conf["aligned"],
+        "volatility_compressed": volatility_compressed,
+        "sector_turning": sector_turning,
+    }
+
+
 def calculate_opportunity_score(factors: dict) -> dict:
     """
     Calculate composite opportunity score with decay and confluence factors.
