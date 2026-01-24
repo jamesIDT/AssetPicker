@@ -623,3 +623,93 @@ def calculate_divergence_score(
 
     # No divergence
     return 0
+
+
+def calculate_opportunity_score(factors: dict) -> dict:
+    """
+    Calculate composite opportunity score with decay and confluence factors.
+
+    Args:
+        factors: Dict with optional keys (missing factors = neutral contribution):
+        - zscore: Z-score of RSI (from calculate_zscore)
+        - days_in_zone: Days signal has been active
+        - weekly_extreme: True if weekly RSI also in extreme
+        - divergence_score: 0/1/2/4 from calculate_divergence_score
+        - volatility_compressed: True if volatility regime is "compressed"
+        - sector_turning: True if sector RSI is turning
+        - funding_aligned: True if funding rate aligns with signal
+        - decorrelation_positive: True if coin decorrelated favorably from BTC
+
+    Returns:
+        Dict with keys:
+        - base_score: abs(zscore) or 1.0 if no zscore
+        - freshness_multiplier: 1.0 to 0.3 based on days_in_zone
+        - confluence_multiplier: 1.0 + sum of factor bonuses
+        - final_score: base * freshness * confluence
+        - factors: Dict showing contribution of each factor
+    """
+    # Base score from z-score
+    zscore = factors.get("zscore", 0)
+    base_score = abs(zscore) if zscore != 0 else 1.0
+
+    # Freshness decay based on days in zone
+    days = factors.get("days_in_zone", 0)
+    if days <= 2:
+        freshness = 1.0
+    elif days <= 6:
+        freshness = 0.8
+    elif days <= 10:
+        freshness = 0.6
+    elif days <= 13:
+        freshness = 0.4
+    else:
+        freshness = 0.3
+
+    # Confluence multiplier - accumulate bonuses
+    factor_contributions = {}
+    confluence = 1.0
+
+    # Weekly extreme: +0.2
+    if factors.get("weekly_extreme", False):
+        confluence += 0.2
+        factor_contributions["weekly_extreme"] = 0.2
+
+    # Divergence score: 1-2 → +0.3, 4 → +0.5
+    divergence = factors.get("divergence_score", 0)
+    if divergence >= 4:
+        confluence += 0.5
+        factor_contributions["divergence"] = 0.5
+    elif divergence >= 1:
+        confluence += 0.3
+        factor_contributions["divergence"] = 0.3
+
+    # Volatility compressed: +0.2
+    if factors.get("volatility_compressed", False):
+        confluence += 0.2
+        factor_contributions["volatility_compressed"] = 0.2
+
+    # Sector turning: +0.1
+    if factors.get("sector_turning", False):
+        confluence += 0.1
+        factor_contributions["sector_turning"] = 0.1
+
+    # Funding aligned: +0.2
+    if factors.get("funding_aligned", False):
+        confluence += 0.2
+        factor_contributions["funding_aligned"] = 0.2
+
+    # Decorrelation positive: +0.2
+    if factors.get("decorrelation_positive", False):
+        confluence += 0.2
+        factor_contributions["decorrelation_positive"] = 0.2
+
+    # Calculate final score
+    final_score = base_score * freshness * confluence
+
+    return {
+        "base_score": round(base_score, 4),
+        "freshness_multiplier": freshness,
+        "confluence_multiplier": round(confluence, 2),
+        "final_score": round(final_score, 4),
+        "factors": factor_contributions,
+    }
