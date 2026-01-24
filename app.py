@@ -12,6 +12,7 @@ from src.coingecko import CoinGeckoClient
 from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
+    calculate_opportunity_score,
     calculate_rsi_acceleration,
     calculate_zscore,
     classify_signal_lifecycle,
@@ -200,6 +201,26 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         # Get BTC daily RSI for expected RSI calculation
         btc_daily_rsi = get_daily_rsi(btc_hist)
 
+    # Pre-calculate coins_for_sector and sector momentum (needed for opportunity score)
+    coins_for_sector_pre = []
+    for coin_id in coin_ids:
+        if coin_id in market_lookup and coin_id in history:
+            market = market_lookup[coin_id]
+            hist = history[coin_id]
+            daily_rsi_val = get_daily_rsi(hist)
+            if daily_rsi_val is not None:
+                daily_closes = extract_closes(hist)
+                daily_rsi_history = get_rsi_history(daily_closes)
+                coins_for_sector_pre.append({
+                    "id": coin_id,
+                    "daily_rsi": daily_rsi_val,
+                    "market_cap": market.get("market_cap", 0),
+                    "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
+                })
+
+    # Calculate sector momentum before main loop for opportunity scoring
+    sector_momentum = calculate_sector_momentum(coins_for_sector_pre)
+
     result = []
     divergence_result = []
     failed_count = 0
@@ -285,25 +306,25 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 entry_price = daily_closes[-(days_in + 1)] if days_in + 1 <= len(daily_closes) else daily_closes[0]
                 price_change_pct = ((current_price - entry_price) / entry_price) * 100
 
-        result.append(
-            {
-                "symbol": market.get("symbol", "").upper(),
-                "name": market.get("name", ""),
-                "daily_rsi": daily_rsi,
-                "weekly_rsi": weekly_rsi,
-                "vol_mcap_ratio": vol_mcap_ratio,
-                "price": market.get("current_price", 0),
-                "volume": volume,
-                "market_cap": mcap,
-                "beta_info": beta_info,
-                "lifecycle_oversold": lifecycle_oversold,
-                "lifecycle_overbought": lifecycle_overbought,
-                "volatility": volatility,
-                "acceleration": acceleration,
-                "price_change_pct": price_change_pct,
-                "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
-            }
-        )
+        # Build coin data dict (will add opportunity_score after divergence calculation)
+        coin_data = {
+            "id": coin_id,
+            "symbol": market.get("symbol", "").upper(),
+            "name": market.get("name", ""),
+            "daily_rsi": daily_rsi,
+            "weekly_rsi": weekly_rsi,
+            "vol_mcap_ratio": vol_mcap_ratio,
+            "price": market.get("current_price", 0),
+            "volume": volume,
+            "market_cap": mcap,
+            "beta_info": beta_info,
+            "lifecycle_oversold": lifecycle_oversold,
+            "lifecycle_overbought": lifecycle_overbought,
+            "volatility": volatility,
+            "acceleration": acceleration,
+            "price_change_pct": price_change_pct,
+            "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
+        }
 
         # Calculate divergence data (reuse prices, daily_closes, daily_rsi_history from above)
 
@@ -338,6 +359,70 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
         divergence_result.append({"type": div_type, "score": score})
 
+        # Calculate opportunity score
+        # Get sector for this coin
+        sector = get_sector(coin_id)
+        coin_data["sector"] = sector
+
+        # Determine signal direction
+        signal_direction = "long" if daily_rsi < 50 else "short"
+        coin_data["signal_direction"] = signal_direction
+
+        # Get days in zone from lifecycle
+        days_in_zone = 0
+        if signal_direction == "long" and lifecycle_oversold:
+            days_in_zone = lifecycle_oversold.get("days_in_zone", 0)
+        elif signal_direction == "short" and lifecycle_overbought:
+            days_in_zone = lifecycle_overbought.get("days_in_zone", 0)
+
+        # Calculate zscore for this coin
+        zscore_val = 0
+        if len(daily_rsi_history) >= 10:
+            zscore_info = calculate_zscore(daily_rsi_history, lookback=90)
+            if zscore_info:
+                zscore_val = zscore_info.get("zscore", 0)
+                coin_data["zscore_info"] = zscore_info
+
+        # Check weekly extreme
+        weekly_extreme = weekly_rsi < 30 or weekly_rsi > 70
+
+        # Check volatility compressed
+        volatility_compressed = volatility is not None and volatility.get("regime") == "compressed"
+
+        # Check sector turning (from pre-calculated sector_momentum)
+        sector_turning = False
+        if sector in sector_momentum:
+            sector_turning = sector_momentum[sector].get("is_rotation_signal", False)
+
+        # Check decorrelation positive (based on beta interpretation and signal direction)
+        decorrelation_positive = False
+        if beta_info:
+            interp = beta_info.get("interpretation", "")
+            # For long (oversold): outperforming is positive decorrelation (holding up better than expected)
+            # For short (overbought): underperforming is positive decorrelation (falling faster than expected)
+            if signal_direction == "long" and interp == "outperforming":
+                decorrelation_positive = True
+            elif signal_direction == "short" and interp == "underperforming":
+                decorrelation_positive = True
+
+        # Build factors dict
+        opportunity_factors = {
+            "zscore": zscore_val,
+            "days_in_zone": days_in_zone,
+            "weekly_extreme": weekly_extreme,
+            "divergence_score": score,
+            "volatility_compressed": volatility_compressed,
+            "sector_turning": sector_turning,
+            "funding_aligned": False,  # Not implemented yet (no funding data)
+            "decorrelation_positive": decorrelation_positive,
+        }
+
+        # Calculate opportunity score
+        opportunity_score = calculate_opportunity_score(opportunity_factors)
+        coin_data["opportunity_score"] = opportunity_score
+
+        result.append(coin_data)
+
     # Calculate sector RSI and rankings
     # Build list for sector calculation (need id, daily_rsi)
     coins_for_sector = []
@@ -355,22 +440,12 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
     sector_rsi = calculate_sector_rsi(coins_for_sector)
 
-    # Now add sector info, sector_rank, and zscore_info to each result coin
-    # Build a lookup from symbol to result index for efficient update
-    coin_id_to_result_idx = {}
-    for i, coin_id in enumerate(coin_ids):
-        if coin_id in market_lookup:
-            symbol = market_lookup[coin_id].get("symbol", "").upper()
-            # Find the result entry with this symbol
-            for j, r in enumerate(result):
-                if r["symbol"] == symbol:
-                    coin_id_to_result_idx[coin_id] = j
-                    break
+    # Add sector_rank to each result coin (sector, id, zscore_info already added in main loop)
+    # Build a lookup from coin_id to result index for efficient update
+    coin_id_to_result_idx = {r["id"]: i for i, r in enumerate(result)}
 
     for coin_id, result_idx in coin_id_to_result_idx.items():
-        sector = get_sector(coin_id)
-        result[result_idx]["sector"] = sector
-        result[result_idx]["id"] = coin_id
+        sector = result[result_idx].get("sector", "Other")
 
         # Determine sector ranking
         sector_rank = None
@@ -393,17 +468,6 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                         sector_rank = "worst"
 
         result[result_idx]["sector_rank"] = sector_rank
-
-        # Calculate z-score using daily RSI history
-        zscore_info = None
-        if coin_id in history:
-            hist = history[coin_id]
-            daily_closes = extract_closes(hist)
-            daily_rsi_history = get_rsi_history(daily_closes)
-            if len(daily_rsi_history) >= 10:
-                zscore_info = calculate_zscore(daily_rsi_history, lookback=90)
-
-        result[result_idx]["zscore_info"] = zscore_info
 
     return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi
 
