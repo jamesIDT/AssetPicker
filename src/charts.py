@@ -38,7 +38,9 @@ def format_currency(value: float) -> str:
         return f"${value:,.2f}"
 
 
-def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
+def build_rsi_scatter(
+    coin_data: list[dict], divergence_data: list[dict] | None = None
+) -> go.Figure:
     """
     Build scatter plot showing daily RSI vs liquidity with weekly RSI color encoding.
 
@@ -52,6 +54,9 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
             - price: Current price
             - volume: 24h trading volume
             - market_cap: Market capitalization
+        divergence_data: Optional list of divergence dicts (same order as coin_data):
+            - type: "bullish" | "bearish" | "none"
+            - score: 0 | 1 | 2 | 4
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -180,7 +185,15 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
     vol_mcap = [c["vol_mcap_ratio"] for c in coin_data]
     weekly_rsi = [c["weekly_rsi"] for c in coin_data]
 
-    # Prepare customdata for enhanced tooltips: [name, price, volume, mcap, weekly_rsi]
+    # Build divergence info (default to none if not provided)
+    if divergence_data is None:
+        divergence_data = [{"type": "none", "score": 0} for _ in coin_data]
+    elif len(divergence_data) != len(coin_data):
+        # Fallback if lengths don't match
+        divergence_data = [{"type": "none", "score": 0} for _ in coin_data]
+
+    # Prepare customdata for enhanced tooltips:
+    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score]
     customdata = [
         [
             c["name"],
@@ -188,43 +201,206 @@ def build_rsi_scatter(coin_data: list[dict]) -> go.Figure:
             format_currency(c["volume"]),
             format_currency(c["market_cap"]),
             c["weekly_rsi"],
+            d["type"],
+            d["score"],
         ]
-        for c in coin_data
+        for c, d in zip(coin_data, divergence_data)
     ]
 
-    fig.add_trace(
-        go.Scatter(
-            x=daily_rsi,
-            y=vol_mcap,
-            mode="markers+text",
-            text=symbols,
-            textposition="top center",
-            textfont={"size": 9},
-            customdata=customdata,
-            marker={
-                "size": 10,
-                "color": weekly_rsi,
-                "colorscale": "RdYlGn_r",
-                "cmin": 0,
-                "cmax": 100,
-                "colorbar": {
-                    "title": "Weekly RSI",
-                    "tickvals": [0, 25, 50, 75, 100],
-                    "len": 0.8,
-                },
-                "line": {"width": 1, "color": "rgba(0,0,0,0.3)"},
-            },
-            hovertemplate=(
-                "<b>%{customdata[0]}</b> (%{text})<br>"
-                "Price: %{customdata[1]}<br>"
-                "Volume: %{customdata[2]}<br>"
-                "Market Cap: %{customdata[3]}<br>"
-                "Daily RSI: %{x:.1f}<br>"
-                "Weekly RSI: %{customdata[4]:.1f}"
-                "<extra></extra>"
-            ),
-        )
+    # Group coins by divergence type for efficient trace rendering
+    # Indices for each group
+    neutral_indices = []
+    bullish_indices = []
+    bearish_indices = []
+    score_2_indices = []  # Score >= 2 (outer ring)
+    score_4_indices = []  # Score == 4 (bold outer ring)
+
+    for i, d in enumerate(divergence_data):
+        div_type = d.get("type", "none")
+        score = d.get("score", 0)
+
+        if div_type == "bullish":
+            bullish_indices.append(i)
+        elif div_type == "bearish":
+            bearish_indices.append(i)
+        else:
+            neutral_indices.append(i)
+
+        if score >= 2:
+            score_2_indices.append(i)
+        if score == 4:
+            score_4_indices.append(i)
+
+    # Helper to extract subset by indices
+    def subset(indices: list[int], values: list) -> list:
+        return [values[i] for i in indices]
+
+    # Common hovertemplate for all traces
+    hovertemplate = (
+        "<b>%{customdata[0]}</b> (%{text})<br>"
+        "Price: %{customdata[1]}<br>"
+        "Volume: %{customdata[2]}<br>"
+        "Market Cap: %{customdata[3]}<br>"
+        "Daily RSI: %{x:.1f}<br>"
+        "Weekly RSI: %{customdata[4]:.1f}<br>"
+        "Divergence: %{customdata[5]} (score %{customdata[6]})"
+        "<extra></extra>"
     )
+
+    # Layer 1: Outer rings for score >= 2 (thin ring)
+    if score_2_indices:
+        fig.add_trace(
+            go.Scatter(
+                x=subset(score_2_indices, daily_rsi),
+                y=subset(score_2_indices, vol_mcap),
+                mode="markers",
+                marker={
+                    "size": 18,
+                    "symbol": "circle-open",
+                    "color": subset(score_2_indices, weekly_rsi),
+                    "colorscale": "RdYlGn_r",
+                    "cmin": 0,
+                    "cmax": 100,
+                    "line": {"width": 1, "color": "rgba(0,0,0,0.4)"},
+                },
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+
+    # Layer 2: Bold rings for score = 4 (overrides thin ring visually)
+    if score_4_indices:
+        fig.add_trace(
+            go.Scatter(
+                x=subset(score_4_indices, daily_rsi),
+                y=subset(score_4_indices, vol_mcap),
+                mode="markers",
+                marker={
+                    "size": 20,
+                    "symbol": "circle-open",
+                    "color": subset(score_4_indices, weekly_rsi),
+                    "colorscale": "RdYlGn_r",
+                    "cmin": 0,
+                    "cmax": 100,
+                    "line": {"width": 3, "color": "rgba(0,0,0,0.6)"},
+                },
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+
+    # Layer 3: Neutral circles (no divergence)
+    if neutral_indices:
+        fig.add_trace(
+            go.Scatter(
+                x=subset(neutral_indices, daily_rsi),
+                y=subset(neutral_indices, vol_mcap),
+                mode="markers+text",
+                text=subset(neutral_indices, symbols),
+                textposition="top center",
+                textfont={"size": 9},
+                customdata=subset(neutral_indices, customdata),
+                marker={
+                    "size": 10,
+                    "symbol": "circle",
+                    "color": subset(neutral_indices, weekly_rsi),
+                    "colorscale": "RdYlGn_r",
+                    "cmin": 0,
+                    "cmax": 100,
+                    "colorbar": {
+                        "title": "Weekly RSI",
+                        "tickvals": [0, 25, 50, 75, 100],
+                        "len": 0.8,
+                    },
+                    "line": {"width": 1, "color": "rgba(0,0,0,0.3)"},
+                },
+                hovertemplate=hovertemplate,
+                showlegend=False,
+            )
+        )
+
+    # Layer 4: Bullish crosses (+)
+    if bullish_indices:
+        fig.add_trace(
+            go.Scatter(
+                x=subset(bullish_indices, daily_rsi),
+                y=subset(bullish_indices, vol_mcap),
+                mode="markers+text",
+                text=subset(bullish_indices, symbols),
+                textposition="top center",
+                textfont={"size": 9},
+                customdata=subset(bullish_indices, customdata),
+                marker={
+                    "size": 12,
+                    "symbol": "cross",
+                    "color": subset(bullish_indices, weekly_rsi),
+                    "colorscale": "RdYlGn_r",
+                    "cmin": 0,
+                    "cmax": 100,
+                    "colorbar": None if neutral_indices else {
+                        "title": "Weekly RSI",
+                        "tickvals": [0, 25, 50, 75, 100],
+                        "len": 0.8,
+                    },
+                    "line": {"width": 2, "color": "rgba(0,0,0,0.5)"},
+                },
+                hovertemplate=hovertemplate,
+                showlegend=False,
+            )
+        )
+
+    # Layer 5: Bearish diamonds
+    if bearish_indices:
+        fig.add_trace(
+            go.Scatter(
+                x=subset(bearish_indices, daily_rsi),
+                y=subset(bearish_indices, vol_mcap),
+                mode="markers+text",
+                text=subset(bearish_indices, symbols),
+                textposition="top center",
+                textfont={"size": 9},
+                customdata=subset(bearish_indices, customdata),
+                marker={
+                    "size": 12,
+                    "symbol": "diamond",
+                    "color": subset(bearish_indices, weekly_rsi),
+                    "colorscale": "RdYlGn_r",
+                    "cmin": 0,
+                    "cmax": 100,
+                    "colorbar": None if (neutral_indices or bullish_indices) else {
+                        "title": "Weekly RSI",
+                        "tickvals": [0, 25, 50, 75, 100],
+                        "len": 0.8,
+                    },
+                    "line": {"width": 2, "color": "rgba(0,0,0,0.5)"},
+                },
+                hovertemplate=hovertemplate,
+                showlegend=False,
+            )
+        )
+
+    # Fallback: if no coins in any category, add empty trace for colorbar
+    if not neutral_indices and not bullish_indices and not bearish_indices:
+        fig.add_trace(
+            go.Scatter(
+                x=[],
+                y=[],
+                mode="markers",
+                marker={
+                    "size": 10,
+                    "color": [],
+                    "colorscale": "RdYlGn_r",
+                    "cmin": 0,
+                    "cmax": 100,
+                    "colorbar": {
+                        "title": "Weekly RSI",
+                        "tickvals": [0, 25, 50, 75, 100],
+                        "len": 0.8,
+                    },
+                },
+                showlegend=False,
+            )
+        )
 
     fig.update_layout(
         title="",
