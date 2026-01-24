@@ -32,7 +32,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 15: Design System** - CSS tokens, dark theme, typography, panel styling
 - [x] **Phase 16: Layout Restructure** - Side-by-side quadrants, new information hierarchy
 - [x] **Phase 17: Chart Theming** - Plotly charts updated to dark theme with new palette
-- [ ] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
+- [x] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
 - [ ] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
 - [ ] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
 
@@ -142,7 +142,7 @@ Components:
 - Filter controls
 
 Plans:
-- [ ] 18-01: TBD
+- [x] 18-01: Restyle regime banner, leaderboard score bars, conviction badges
 
 #### Phase 19: Legends & Onboarding
 **Goal**: Replace inline chart legends with collapsible "How to Read" panel
@@ -199,6 +199,6 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 15. Design System | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 16. Layout Restructure | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 17. Chart Theming | v3.0 | 1/1 | Complete | 2026-01-24 |
-| 18. Component Refinement | v3.0 | 0/? | Not started | - |
+| 18. Component Refinement | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 19. Legends & Onboarding | v3.0 | 0/? | Not started | - |
 | 20. Polish & Integration | v3.0 | 0/? | Not started | - |
