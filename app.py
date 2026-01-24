@@ -1335,13 +1335,13 @@ if st.session_state.coin_data is not None:
                     is_compressed = vol_regime == "compressed"
 
                     if is_fresh and is_compressed:
-                        conviction = "★★★"
+                        conviction = "⭐⭐⭐"  # Gold stars for highest conviction
                         conviction_sort = 3
                     elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
-                        conviction = "★★"
+                        conviction = "⭐⭐☆"  # Two gold, one hollow
                         conviction_sort = 2
                     else:
-                        conviction = "★"
+                        conviction = "⭐☆☆"  # One gold, two hollow
                         conviction_sort = 1
 
                     lifecycle_coins.append({
@@ -1367,13 +1367,13 @@ if st.session_state.coin_data is not None:
                     is_compressed = vol_regime == "compressed"
 
                     if is_fresh and is_compressed:
-                        conviction = "★★★"
+                        conviction = "⭐⭐⭐"  # Gold stars for highest conviction
                         conviction_sort = 3
                     elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
-                        conviction = "★★"
+                        conviction = "⭐⭐☆"  # Two gold, one hollow
                         conviction_sort = 2
                     else:
-                        conviction = "★"
+                        conviction = "⭐☆☆"  # One gold, two hollow
                         conviction_sort = 1
 
                     lifecycle_coins.append({
@@ -1420,7 +1420,7 @@ if st.session_state.coin_data is not None:
             st.caption(
                 "**Signal Stages:** 🆕 Fresh (1-2 days) | ✓ Confirmed (3-5 days) | ⏳ Extended (6+ days) | ↗↘ Resolving (exiting zone)  \n"
                 "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
-                "**Conviction:** ★★★ Fresh + Compressed = Highest conviction | ★★ Confirmed or Fresh + Normal | ★ Other"
+                "**Conviction:** ⭐⭐⭐ Fresh + Compressed = Highest | ⭐⭐☆ Confirmed or Fresh + Normal | ⭐☆☆ Other"
             )
 
 else:
