@@ -11,7 +11,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 ## Milestones
 
 - ✅ **v1.0 MVP** - Phases 1-6 (shipped 2026-01-23)
-- 🚧 **v2.0 Advanced Screening** - Phases 7-14 (in progress)
+- ✅ **v2.0 Advanced Screening** - Phases 7-14 (shipped 2026-01-24)
 
 ## Phases
 
@@ -27,7 +27,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 11: Signal Lifecycle Display** - Combined lifecycle badges + volatility context view
 - [x] **Phase 12: Sector Momentum View** - Sector rotation flow visualization
 - [x] **Phase 13: Acceleration Quadrant** - RSI acceleration + volatility regime new quadrant
-- [ ] **Phase 14: Opportunity Leaderboard** - Decay score ranked table with all factors
+- [x] **Phase 14: Opportunity Leaderboard** - Decay score ranked table with all factors
 
 ## Phase Details
 
@@ -60,7 +60,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 
 </details>
 
-### 🚧 v2.0 Advanced Screening (In Progress)
+### ✅ v2.0 Advanced Screening (SHIPPED 2026-01-24)
 
 **Milestone Goal:** Transform basic RSI screener into a multi-dimensional opportunity detection system with regime awareness, divergence detection, sector analysis, funding rate confluence, and composite scoring.
 
@@ -249,4 +249,4 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 11. Signal Lifecycle Display | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 12. Sector Momentum View | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 13. Acceleration Quadrant | v2.0 | 1/1 | Complete | 2026-01-24 |
-| 14. Opportunity Leaderboard | v2.0 | 0/TBD | Not started | - |
+| 14. Opportunity Leaderboard | v2.0 | 1/1 | Complete | 2026-01-24 |

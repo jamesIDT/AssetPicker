@@ -509,12 +509,20 @@ def build_rsi_scatter(
     # Add divergence legend in top-left corner
     # Using paper coordinates to position relative to plot area
     legend_text = (
-        "<b>Divergence Markers</b><br>"
-        "<span style='font-size:14px'>+</span> Bullish<br>"
-        "<span style='font-size:12px'>◆</span> Bearish<br>"
-        "<span style='font-size:10px'>●</span> None<br>"
-        "<span style='font-size:10px'>○</span> Ring = Score 2+<br>"
-        "<span style='font-size:10px; font-weight:bold'>○</span> Bold = Score 4"
+        "<b>📊 Divergence Markers</b><br>"
+        "<span style='font-size:14px'>+</span> Bullish divergence<br>"
+        "<span style='font-size:12px'>◆</span> Bearish divergence<br>"
+        "<span style='font-size:10px'>●</span> No divergence<br>"
+        "<br>"
+        "<b>🎯 Divergence Score</b><br>"
+        "0 = No divergence<br>"
+        "1 = Single TF, weak (RSI Δ &lt; 5)<br>"
+        "2 = Single TF, strong (RSI Δ ≥ 5)<br>"
+        "4 = Multi-TF (daily + weekly)<br>"
+        "<br>"
+        "<b>🔘 Ring Visual</b><br>"
+        "○ Thin ring = Score 2<br>"
+        "<b>○</b> Bold ring = Score 4"
     )
     fig.add_annotation(
         x=0.01,
@@ -525,12 +533,44 @@ def build_rsi_scatter(
         showarrow=False,
         font={"size": 10, "color": "rgba(0,0,0,0.7)"},
         align="left",
-        bgcolor="rgba(255,255,255,0.85)",
+        bgcolor="rgba(255,255,255,0.92)",
         bordercolor="rgba(0,0,0,0.2)",
         borderwidth=1,
-        borderpad=6,
+        borderpad=8,
         xanchor="left",
         yanchor="top",
+    )
+
+    # Add color mode explanation in bottom-left
+    if color_mode == "beta_residual":
+        color_legend = (
+            "<b>🎨 Color: Beta Residual</b><br>"
+            "🟢 Green = Outperforming BTC<br>"
+            "🟡 Yellow = Expected vs BTC<br>"
+            "🔴 Red = Underperforming BTC"
+        )
+    else:
+        color_legend = (
+            "<b>🎨 Color: Weekly RSI</b><br>"
+            "🟢 Green = Oversold (&lt;30)<br>"
+            "🟡 Yellow = Neutral (30-70)<br>"
+            "🔴 Red = Overbought (&gt;70)"
+        )
+    fig.add_annotation(
+        x=0.01,
+        y=0.01,
+        xref="paper",
+        yref="paper",
+        text=color_legend,
+        showarrow=False,
+        font={"size": 10, "color": "rgba(0,0,0,0.7)"},
+        align="left",
+        bgcolor="rgba(255,255,255,0.92)",
+        bordercolor="rgba(0,0,0,0.2)",
+        borderwidth=1,
+        borderpad=8,
+        xanchor="left",
+        yanchor="bottom",
     )
 
     fig.update_layout(
