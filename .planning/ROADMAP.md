@@ -29,7 +29,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 12: Sector Momentum View** - Sector rotation flow visualization
 - [x] **Phase 13: Acceleration Quadrant** - RSI acceleration + volatility regime new quadrant
 - [x] **Phase 14: Opportunity Leaderboard** - Decay score ranked table with all factors
-- [ ] **Phase 15: Design System** - CSS tokens, dark theme, typography, panel styling
+- [x] **Phase 15: Design System** - CSS tokens, dark theme, typography, panel styling
 - [ ] **Phase 16: Layout Restructure** - Side-by-side quadrants, new information hierarchy
 - [ ] **Phase 17: Chart Theming** - Plotly charts updated to dark theme with new palette
 - [ ] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
@@ -90,14 +90,14 @@ See [v2.0 Archive](milestones/v2.0-ROADMAP.md) for full details.
 **Color Palette:** Dark gray (#4A4A4A), Silver (#CBCBCB), Cream (#FFFFE3), Slate blue (#6D8196), Yellow-orange accent (#FFB020)
 **Constraint:** Preserve existing RSI red-green spectrum in chart data visualization
 
-#### Phase 15: Design System
+#### Phase 15: Design System (COMPLETE)
 **Goal**: Create CSS tokens and base styling infrastructure for dark theme
 **Depends on**: v2.0 complete
 **Research**: Unlikely (Streamlit CSS injection patterns established)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 15-01: TBD (run /gsd:plan-phase 15 to break down)
+- [x] 15-01: CSS tokens + comprehensive base styling
 
 #### Phase 16: Layout Restructure
 **Goal**: Implement side-by-side quadrants layout with new information hierarchy
@@ -196,7 +196,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 12. Sector Momentum View | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 13. Acceleration Quadrant | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 14. Opportunity Leaderboard | v2.0 | 1/1 | Complete | 2026-01-24 |
-| 15. Design System | v3.0 | 0/? | Not started | - |
+| 15. Design System | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 16. Layout Restructure | v3.0 | 0/? | Not started | - |
 | 17. Chart Theming | v3.0 | 0/? | Not started | - |
 | 18. Component Refinement | v3.0 | 0/? | Not started | - |
