@@ -492,6 +492,100 @@ def detect_divergence(
     }
 
 
+def classify_signal_lifecycle(
+    rsi_history: list[float], extreme_threshold: float = 30.0, is_oversold: bool = True
+) -> dict | None:
+    """
+    Classify signal lifecycle state based on RSI behavior in extreme zones.
+
+    Args:
+        rsi_history: RSI values (oldest to newest, at least 5 values)
+        extreme_threshold: RSI level for extreme (30 for oversold, 70 for overbought)
+        is_oversold: True for oversold signals, False for overbought
+
+    Returns:
+        Dict with keys:
+        - state: "fresh" | "confirmed" | "extended" | "resolving" | "none"
+        - days_in_zone: How many consecutive periods in extreme zone
+        - entry_rsi: RSI when signal started
+        - current_rsi: Current RSI
+        - emoji: State emoji for UI display
+        Returns None if insufficient history (< 5 values).
+    """
+    if len(rsi_history) < 5:
+        return None
+
+    current_rsi = rsi_history[-1]
+
+    # Check if current RSI is in extreme zone
+    def is_extreme(rsi: float) -> bool:
+        if is_oversold:
+            return rsi < extreme_threshold
+        else:
+            return rsi > extreme_threshold
+
+    # Count consecutive days in extreme zone from the end
+    days_in_zone = 0
+    entry_rsi = current_rsi
+
+    for i in range(len(rsi_history) - 1, -1, -1):
+        if is_extreme(rsi_history[i]):
+            days_in_zone += 1
+            entry_rsi = rsi_history[i]
+        else:
+            break
+
+    # Check for resolving state: was in zone but now moving toward 50
+    # Crossed back within last 2 periods
+    is_resolving = False
+    if days_in_zone == 0 and len(rsi_history) >= 2:
+        # Check if we were in zone 1 or 2 periods ago
+        if is_extreme(rsi_history[-2]) or (
+            len(rsi_history) >= 3 and is_extreme(rsi_history[-3])
+        ):
+            # Now moving toward 50
+            if is_oversold:
+                if current_rsi > rsi_history[-2]:
+                    is_resolving = True
+            else:
+                if current_rsi < rsi_history[-2]:
+                    is_resolving = True
+
+    # Classify state
+    if is_resolving:
+        state = "resolving"
+        # For resolving, find the entry RSI from recent extreme
+        for i in range(len(rsi_history) - 2, -1, -1):
+            if is_extreme(rsi_history[i]):
+                entry_rsi = rsi_history[i]
+                break
+    elif days_in_zone == 0:
+        state = "none"
+    elif days_in_zone <= 2:
+        state = "fresh"
+    elif days_in_zone <= 5:
+        state = "confirmed"
+    else:
+        state = "extended"
+
+    # Emoji mapping
+    emoji_map = {
+        "fresh": "🆕",
+        "confirmed": "✓",
+        "extended": "⏳",
+        "resolving": "↗" if is_oversold else "↘",
+        "none": "",
+    }
+
+    return {
+        "state": state,
+        "days_in_zone": days_in_zone,
+        "entry_rsi": round(entry_rsi, 2),
+        "current_rsi": round(current_rsi, 2),
+        "emoji": emoji_map[state],
+    }
+
+
 def calculate_divergence_score(
     daily_divergence: dict | None, weekly_divergence: dict | None
 ) -> int:
