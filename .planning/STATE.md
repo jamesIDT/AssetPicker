@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** Surface crypto assets where both daily AND weekly RSI align in extreme zones with adequate liquidity
-**Current focus:** v2.0 Advanced Screening ARCHIVED — Milestone shipped and archived
+**Current focus:** v3.0 UX Dashboard Redesign — Professional analyst dashboard with dark theme
 
 ## Current Position
 
-Phase: N/A (between milestones)
-Plan: N/A
-Status: v2.0 shipped, awaiting v3.0 roadmap
-Last activity: 2026-01-24 — Archived v2.0 milestone
+Phase: 15 of 20 (Design System)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-24 — Milestone v3.0 created
 
-Progress: ██████████████ 100% (14/14 phases complete)
+Progress: ░░░░░░░░░░░░░░░░░░░░ 0%
 
 ## Performance Metrics
 
@@ -51,7 +51,15 @@ Progress: ██████████████ 100% (14/14 phases complete
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-All v1.0 decisions marked as Good.
+All v1.0 and v2.0 decisions marked as Good.
+
+### v3.0 Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Color palette | Dark gray + cream + yellow-orange accent | User specified, matches hypothesis-validator aesthetic |
+| Layout | Side-by-side quadrants | Research-backed: simultaneous comparison improves analysis workflow |
+| RSI colors | Preserve red-green spectrum | User specified: works well for +ve/-ve data interpretation |
 
 ### Deferred Issues
 
@@ -64,8 +72,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Archived v2.0 milestone
-Resume file: None - v2.0 Advanced Screening milestone archived
+Stopped at: Milestone v3.0 initialization
+Resume file: None
 
 ## Milestones Completed
 
@@ -73,3 +81,9 @@ Resume file: None - v2.0 Advanced Screening milestone archived
 |---------|------|--------|---------|
 | v1.0 | MVP | 1-6 | 2026-01-23 |
 | v2.0 | Advanced Screening | 7-14 | 2026-01-24 |
+
+## Roadmap Evolution
+
+- v1.0 created: Core RSI visualization, 6 phases (Phase 1-6)
+- v2.0 created: Advanced screening features, 8 phases (Phase 7-14)
+- v3.0 created: UX Dashboard Redesign, 6 phases (Phase 15-20)

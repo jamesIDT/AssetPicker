@@ -29,14 +29,310 @@ load_dotenv()
 # Page configuration
 st.set_page_config(page_title="Crypto RSI Screener", layout="wide")
 
-# Custom CSS for chart container
+# Design System CSS - Dark Theme with Yellow-Orange Accent
 st.markdown(
     """
     <style>
-    /* Style the primary button */
-    [data-testid="stButton"] button[kind="primary"] {
-        background-color: #4CAF50;
-        border-color: #4CAF50;
+    /* =================================================================
+       CSS DESIGN TOKENS
+       ================================================================= */
+    :root {
+        /* Background colors */
+        --bg-0: #4A4A4A;           /* Primary background (dark gray) */
+        --bg-1: #6D8196;           /* Slate blue for panels */
+        --bg-2: #5A5A5A;           /* Slightly lighter gray for hover */
+
+        /* Text colors */
+        --text-0: #FFFFE3;         /* Cream primary text */
+        --text-1: rgba(255, 255, 227, 0.72);  /* Secondary text */
+        --text-2: rgba(255, 255, 227, 0.54);  /* Tertiary/muted text */
+
+        /* Accent colors */
+        --accent: #FFB020;         /* Yellow-orange hero color */
+        --accent-2: #FFD38A;       /* Softer accent for hover */
+
+        /* Panel/surface colors */
+        --panel: rgba(109, 129, 150, 0.15);       /* Panel background */
+        --panel-hover: rgba(109, 129, 150, 0.25); /* Panel hover */
+
+        /* Borders and lines */
+        --line: rgba(255, 255, 227, 0.12);        /* Subtle borders */
+    }
+
+    /* =================================================================
+       GLOBAL STREAMLIT OVERRIDES
+       ================================================================= */
+
+    /* Main app background */
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stHeader"],
+    .main .block-container {
+        background-color: var(--bg-0) !important;
+    }
+
+    /* Sidebar styling */
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] > div {
+        background-color: var(--bg-0) !important;
+        border-right: 1px solid var(--line) !important;
+    }
+
+    /* All text defaults to cream */
+    .stApp,
+    .stApp p,
+    .stApp span,
+    .stApp label,
+    .stApp div {
+        color: var(--text-0) !important;
+    }
+
+    /* Headings */
+    .stApp h1,
+    .stApp h2,
+    .stApp h3 {
+        color: var(--text-0) !important;
+        letter-spacing: 0.02em;
+    }
+
+    /* Captions and small text */
+    .stApp small,
+    .stApp .stCaption,
+    [data-testid="stCaption"] {
+        color: var(--text-2) !important;
+    }
+
+    /* =================================================================
+       PRIMARY BUTTON STYLING
+       ================================================================= */
+    [data-testid="stButton"] button[kind="primary"],
+    .stButton > button[kind="primary"] {
+        background-color: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: var(--bg-0) !important;
+        border-radius: 2px !important;
+        font-weight: 500 !important;
+        transition: all 0.15s ease !important;
+    }
+
+    [data-testid="stButton"] button[kind="primary"]:hover,
+    .stButton > button[kind="primary"]:hover {
+        background-color: var(--accent-2) !important;
+        border-color: var(--accent-2) !important;
+        color: var(--bg-0) !important;
+    }
+
+    /* Secondary buttons */
+    [data-testid="stButton"] button:not([kind="primary"]),
+    .stButton > button:not([kind="primary"]) {
+        background-color: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        color: var(--text-0) !important;
+        border-radius: 2px !important;
+    }
+
+    [data-testid="stButton"] button:not([kind="primary"]):hover,
+    .stButton > button:not([kind="primary"]):hover {
+        background-color: var(--panel-hover) !important;
+        border-color: var(--accent) !important;
+    }
+
+    /* =================================================================
+       PANEL / EXPANDER STYLING
+       ================================================================= */
+    [data-testid="stExpander"] {
+        background-color: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 2px !important;
+    }
+
+    [data-testid="stExpander"]:hover {
+        background-color: var(--panel-hover) !important;
+    }
+
+    [data-testid="stExpander"] summary {
+        color: var(--text-0) !important;
+    }
+
+    /* Expander header/toggle */
+    .streamlit-expanderHeader {
+        color: var(--text-0) !important;
+        font-weight: 500 !important;
+    }
+
+    /* =================================================================
+       INPUT / SELECT STYLING
+       ================================================================= */
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div,
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    [data-testid="stSelectbox"] > div > div,
+    [data-baseweb="select"] {
+        background-color: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        color: var(--text-0) !important;
+        border-radius: 2px !important;
+    }
+
+    /* Input focus state */
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus,
+    [data-baseweb="select"]:focus-within {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 1px var(--accent) !important;
+    }
+
+    /* Dropdown menus */
+    [data-baseweb="menu"],
+    [data-baseweb="popover"] > div {
+        background-color: var(--bg-2) !important;
+        border: 1px solid var(--line) !important;
+    }
+
+    [data-baseweb="menu"] li,
+    [data-baseweb="menu"] [role="option"] {
+        color: var(--text-0) !important;
+    }
+
+    [data-baseweb="menu"] li:hover,
+    [data-baseweb="menu"] [role="option"]:hover {
+        background-color: var(--panel-hover) !important;
+    }
+
+    /* =================================================================
+       METRIC STYLING
+       ================================================================= */
+    [data-testid="stMetric"] {
+        background-color: var(--panel) !important;
+        padding: 1rem !important;
+        border-radius: 2px !important;
+        border: 1px solid var(--line) !important;
+    }
+
+    [data-testid="stMetric"] label,
+    [data-testid="stMetricLabel"] {
+        color: var(--text-2) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        font-size: 0.75rem !important;
+    }
+
+    [data-testid="stMetric"] [data-testid="stMetricValue"],
+    [data-testid="stMetricValue"] {
+        color: var(--text-0) !important;
+        font-weight: 600 !important;
+    }
+
+    [data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        color: var(--text-1) !important;
+    }
+
+    /* =================================================================
+       TAB STYLING
+       ================================================================= */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        color: var(--text-2) !important;
+        background-color: transparent !important;
+        border-radius: 2px 2px 0 0 !important;
+        padding: 0.5rem 1rem !important;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover {
+        color: var(--text-0) !important;
+    }
+
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        color: var(--accent) !important;
+        border-bottom: 2px solid var(--accent) !important;
+    }
+
+    /* Tab panel content */
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 1rem !important;
+    }
+
+    /* =================================================================
+       SCROLLBAR STYLING (WEBKIT)
+       ================================================================= */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--bg-0);
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--line);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--bg-1);
+    }
+
+    /* =================================================================
+       DATAFRAME / TABLE STYLING
+       ================================================================= */
+    [data-testid="stDataFrame"],
+    .stDataFrame {
+        background-color: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 2px !important;
+    }
+
+    /* Table headers */
+    [data-testid="stDataFrame"] th,
+    .stDataFrame th,
+    [data-testid="stTable"] th {
+        background-color: var(--bg-2) !important;
+        color: var(--text-1) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        font-size: 0.75rem !important;
+        font-weight: 500 !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    /* Table cells */
+    [data-testid="stDataFrame"] td,
+    .stDataFrame td,
+    [data-testid="stTable"] td {
+        color: var(--text-0) !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    /* Table row hover */
+    [data-testid="stDataFrame"] tr:hover td,
+    .stDataFrame tr:hover td,
+    [data-testid="stTable"] tr:hover td {
+        background-color: var(--panel-hover) !important;
+    }
+
+    /* =================================================================
+       DIVIDER / SEPARATOR
+       ================================================================= */
+    hr,
+    [data-testid="stSeparator"] {
+        border-color: var(--line) !important;
+    }
+
+    /* =================================================================
+       LINK STYLING
+       ================================================================= */
+    a {
+        color: var(--accent) !important;
+    }
+
+    a:hover {
+        color: var(--accent-2) !important;
     }
     </style>
     """,

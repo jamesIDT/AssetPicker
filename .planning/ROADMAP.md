@@ -12,6 +12,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 
 - ✅ **v1.0 MVP** - Phases 1-6 (shipped 2026-01-23)
 - ✅ **v2.0 Advanced Screening** - Phases 7-14 (shipped 2026-01-24)
+- 🚧 **v3.0 UX Dashboard Redesign** - Phases 15-20 (in progress)
 
 ## Phases
 
@@ -28,6 +29,12 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 12: Sector Momentum View** - Sector rotation flow visualization
 - [x] **Phase 13: Acceleration Quadrant** - RSI acceleration + volatility regime new quadrant
 - [x] **Phase 14: Opportunity Leaderboard** - Decay score ranked table with all factors
+- [ ] **Phase 15: Design System** - CSS tokens, dark theme, typography, panel styling
+- [ ] **Phase 16: Layout Restructure** - Side-by-side quadrants, new information hierarchy
+- [ ] **Phase 17: Chart Theming** - Plotly charts updated to dark theme with new palette
+- [ ] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
+- [ ] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
+- [ ] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
 
 ## Phase Details
 
@@ -75,6 +82,97 @@ See [v2.0 Archive](milestones/v2.0-ROADMAP.md) for full details.
 
 </details>
 
+### 🚧 v3.0 UX Dashboard Redesign (In Progress)
+
+**Milestone Goal:** Transform AssetPicker into a professional crypto analyst dashboard with hypothesis-validator inspired dark theme, side-by-side quadrants, and improved information hierarchy.
+
+**Design Reference:** hypothesis-validator project (fonts, bevels, edges)
+**Color Palette:** Dark gray (#4A4A4A), Silver (#CBCBCB), Cream (#FFFFE3), Slate blue (#6D8196), Yellow-orange accent (#FFB020)
+**Constraint:** Preserve existing RSI red-green spectrum in chart data visualization
+
+#### Phase 15: Design System
+**Goal**: Create CSS tokens and base styling infrastructure for dark theme
+**Depends on**: v2.0 complete
+**Research**: Unlikely (Streamlit CSS injection patterns established)
+**Plans**: TBD
+
+Plans:
+- [ ] 15-01: TBD (run /gsd:plan-phase 15 to break down)
+
+#### Phase 16: Layout Restructure
+**Goal**: Implement side-by-side quadrants layout with new information hierarchy
+**Depends on**: Phase 15
+**Research**: Unlikely (Streamlit columns/containers known)
+**Plans**: TBD
+
+Key changes:
+- RSI Scatter + Acceleration Quadrant side-by-side as hero
+- Market Regime banner always visible at top
+- Opportunity Leaderboard + Sector Momentum below charts
+- Signal Lifecycle collapsed by default
+
+Plans:
+- [ ] 16-01: TBD
+
+#### Phase 17: Chart Theming
+**Goal**: Update Plotly charts to dark theme with new color palette
+**Depends on**: Phase 15
+**Research**: Unlikely (Plotly theming documented)
+**Plans**: TBD
+
+Changes:
+- Dark backgrounds (paper_bgcolor, plot_bgcolor)
+- Cream text on dark
+- Monospace font family
+- Yellow-orange accent for highlights
+
+Plans:
+- [ ] 17-01: TBD
+
+#### Phase 18: Component Refinement
+**Goal**: Restyle individual UI components to match design system
+**Depends on**: Phase 16, Phase 17
+**Research**: Unlikely (internal styling patterns)
+**Plans**: TBD
+
+Components:
+- Opportunity Leaderboard (visual score bars, factor badges)
+- Sector Momentum panel
+- Signal Lifecycle display
+- Filter controls
+
+Plans:
+- [ ] 18-01: TBD
+
+#### Phase 19: Legends & Onboarding
+**Goal**: Replace inline chart legends with collapsible "How to Read" panel
+**Depends on**: Phase 17
+**Research**: Unlikely (UI patterns established)
+**Plans**: TBD
+
+Changes:
+- Remove two large inline legend annotations from scatter chart
+- Add collapsible legend panel with quadrant/marker/color explanations
+- Minimal icon legend in chart corner for experienced users
+
+Plans:
+- [ ] 19-01: TBD
+
+#### Phase 20: Polish & Integration
+**Goal**: Final visual polish, responsive testing, remove redundant elements
+**Depends on**: Phase 18, Phase 19
+**Research**: Unlikely (internal refinement)
+**Plans**: TBD
+
+Tasks:
+- Remove redundant "Potential Opportunities" / "Exercise Caution" lists (merged into Leaderboard)
+- Consistent spacing and alignment
+- Loading state styling
+- Error state styling
+
+Plans:
+- [ ] 20-01: TBD
+
 ---
 
 ## Progress
@@ -98,3 +196,9 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 12. Sector Momentum View | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 13. Acceleration Quadrant | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 14. Opportunity Leaderboard | v2.0 | 1/1 | Complete | 2026-01-24 |
+| 15. Design System | v3.0 | 0/? | Not started | - |
+| 16. Layout Restructure | v3.0 | 0/? | Not started | - |
+| 17. Chart Theming | v3.0 | 0/? | Not started | - |
+| 18. Component Refinement | v3.0 | 0/? | Not started | - |
+| 19. Legends & Onboarding | v3.0 | 0/? | Not started | - |
+| 20. Polish & Integration | v3.0 | 0/? | Not started | - |
