@@ -27,12 +27,21 @@ from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 load_dotenv()
 
 # Page configuration
-st.set_page_config(page_title="Crypto RSI Screener", layout="wide")
+st.set_page_config(
+    page_title="Crypto RSI Screener",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 # Design System CSS - Dark Theme with Yellow-Orange Accent
 st.markdown(
     """
     <style>
+    /* =================================================================
+       GOOGLE FONTS IMPORT
+       ================================================================= */
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
     /* =================================================================
        CSS DESIGN TOKENS
        ================================================================= */
@@ -333,6 +342,30 @@ st.markdown(
 
     a:hover {
         color: var(--accent-2) !important;
+    }
+
+    /* =================================================================
+       TYPOGRAPHY - GLOBAL FONT FAMILY
+       ================================================================= */
+    * {
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace !important;
+    }
+
+    /* =================================================================
+       TYPOGRAPHY UTILITY CLASSES
+       ================================================================= */
+    .tracking-caps {
+        text-transform: uppercase !important;
+        letter-spacing: 0.1em !important;
+        font-weight: 500 !important;
+    }
+
+    .text-accent {
+        color: var(--accent) !important;
+    }
+
+    .text-muted {
+        color: var(--text-2) !important;
     }
     </style>
     """,
