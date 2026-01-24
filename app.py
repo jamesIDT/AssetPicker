@@ -1244,17 +1244,27 @@ if st.session_state.coin_data is not None:
                     marker_color=colors,
                     text=[f"{arrow}" for arrow in momentum_arrows],
                     textposition="outside",
-                    textfont=dict(size=14),
+                    textfont=dict(size=14, color="#FFFFE3"),
                     hovertemplate="<b>%{y}</b><br>RSI: %{x:.1f}<extra></extra>",
                 ))
 
                 # Add vertical line at x=50 (neutral)
-                sector_fig.add_vline(x=50, line_dash="dash", line_color="gray", opacity=0.5)
+                sector_fig.add_vline(x=50, line_dash="dash", line_color="rgba(255, 255, 227, 0.3)", opacity=1)
 
                 sector_fig.update_layout(
                     xaxis_title="RSI",
                     yaxis_title="",
-                    xaxis=dict(range=[0, 100]),
+                    xaxis=dict(
+                        range=[0, 100],
+                        title_font=dict(color="#FFFFE3"),
+                        tickfont=dict(color="#FFFFE3"),
+                        gridcolor="rgba(255, 255, 227, 0.08)",
+                    ),
+                    yaxis=dict(
+                        tickfont=dict(color="#FFFFE3"),
+                    ),
+                    paper_bgcolor="#4A4A4A",
+                    plot_bgcolor="rgba(90, 90, 90, 0.3)",
                     height=max(250, len(sector_names) * 35),
                     margin=dict(l=20, r=80, t=20, b=40),
                     showlegend=False,
