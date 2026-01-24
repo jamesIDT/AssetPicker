@@ -20,7 +20,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - Decimal phases (7.1, 7.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1-6: v1.0 MVP** - Core RSI scatter plot with weekly alignment (SHIPPED)
-- [ ] **Phase 7: Data Layer Extensions** - Calculations for regime, acceleration, z-scores, sectors, beta
+- [x] **Phase 7: Data Layer Extensions** - Calculations for regime, acceleration, z-scores, sectors, beta
 - [ ] **Phase 8: Funding Rate Integration** - Binance/Bybit API for funding rates + open interest
 - [ ] **Phase 9: Visual Marker System** - Bull/bear divergence icons with scoring visualization
 - [ ] **Phase 10: Main Chart Enhancements** - Regime banner, beta-adjusted colors, sector strength
@@ -242,7 +242,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 4. Core Visualization | v1.0 | 1/1 | Complete | 2026-01-23 |
 | 5. Interaction & Lists | v1.0 | 1/1 | Complete | 2026-01-23 |
 | 6. Polish | v1.0 | 1/1 | Complete | 2026-01-23 |
-| 7. Data Layer Extensions | v2.0 | 3/4 | In progress | - |
+| 7. Data Layer Extensions | v2.0 | 4/4 | Complete | 2026-01-24 |
 | 8. Funding Rate Integration | v2.0 | 0/TBD | Not started | - |
 | 9. Visual Marker System | v2.0 | 0/TBD | Not started | - |
 | 10. Main Chart Enhancements | v2.0 | 0/TBD | Not started | - |
