@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from src.charts import build_rsi_scatter
 from src.coingecko import CoinGeckoClient
-from src.indicators import calculate_divergence_score, detect_divergence
+from src.indicators import calculate_divergence_score, detect_divergence, detect_regime
 from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
@@ -41,6 +41,10 @@ if "last_updated" not in st.session_state:
     st.session_state.last_updated = None
 if "failed_coins" not in st.session_state:
     st.session_state.failed_coins = 0
+if "btc_regime" not in st.session_state:
+    st.session_state.btc_regime = None
+if "btc_weekly_rsi" not in st.session_state:
+    st.session_state.btc_weekly_rsi = None
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -140,7 +144,7 @@ def aggregate_to_weekly(prices: list[tuple[int, float]]) -> list[float]:
     return [weekly_closes[week] for week in sorted_weeks]
 
 
-async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int]:
+async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None]:
     """
     Fetch market data and calculate RSI for all coins.
 
@@ -148,7 +152,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         coin_ids: List of CoinGecko coin IDs
 
     Returns:
-        Tuple of (coin data list, divergence data list, failed count)
+        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi)
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
@@ -157,6 +161,18 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
     # Build lookup for market data
     market_lookup = {c["id"]: c for c in market_data}
+
+    # Calculate BTC regime if BTC data is available
+    btc_regime = None
+    btc_weekly_rsi = None
+    if "bitcoin" in history:
+        btc_hist = history["bitcoin"]
+        btc_prices = btc_hist.get("prices", [])
+        btc_weekly_closes = aggregate_to_weekly(btc_prices)
+        btc_weekly_rsi_history = get_rsi_history(btc_weekly_closes)
+        if btc_weekly_rsi_history:
+            btc_weekly_rsi = btc_weekly_rsi_history[-1]
+            btc_regime = detect_regime(btc_weekly_rsi_history)
 
     result = []
     divergence_result = []
@@ -233,7 +249,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
         divergence_result.append({"type": div_type, "score": score})
 
-    return result, divergence_result, failed_count
+    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi
 
 
 # Main UI
@@ -256,16 +272,62 @@ coin_ids = [c["id"] for c in watchlist]
 if st.button("Refresh Data", type="primary"):
     with st.spinner("Fetching data from CoinGecko..."):
         try:
-            data, divergence_data, failed_count = asyncio.run(fetch_all_data(coin_ids))
+            data, divergence_data, failed_count, btc_regime, btc_weekly_rsi = asyncio.run(fetch_all_data(coin_ids))
             st.session_state.coin_data = data
             st.session_state.divergence_data = divergence_data
             st.session_state.last_updated = datetime.now()
             st.session_state.failed_coins = failed_count
+            st.session_state.btc_regime = btc_regime
+            st.session_state.btc_weekly_rsi = btc_weekly_rsi
         except Exception as e:
             st.error(f"Failed to fetch data: {e}")
 
 # Display chart or message
 if st.session_state.coin_data is not None:
+    # Display regime banner if available
+    if st.session_state.btc_regime is not None:
+        regime = st.session_state.btc_regime
+        btc_rsi = st.session_state.btc_weekly_rsi
+        combined = regime.get("combined", "transition")
+
+        # Map regime to display properties
+        regime_display = {
+            "bull_rising": ("🐂 Bull ↗", "Rising", "#e8f5e9"),
+            "bull_falling": ("🐂 Bull ↘", "Cooling", "#f1f8e9"),
+            "bull_neutral": ("🐂 Bull →", "Steady", "#f1f8e9"),
+            "bear_rising": ("🐻 Bear ↗", "Recovering", "#fff3e0"),
+            "bear_falling": ("🐻 Bear ↘", "Falling", "#ffebee"),
+            "bear_neutral": ("🐻 Bear →", "Steady", "#ffebee"),
+            "transition": ("⚖️ Transition", "", "#fffde7"),
+        }
+
+        emoji_label, momentum_label, bg_color = regime_display.get(
+            combined, ("⚖️ Transition", "", "#fffde7")
+        )
+
+        banner_text = emoji_label
+        if momentum_label:
+            banner_text += f" ({momentum_label})"
+        if btc_rsi is not None:
+            banner_text += f" | BTC Weekly RSI: {btc_rsi:.1f}"
+
+        st.markdown(
+            f"""
+            <div style="
+                background-color: {bg_color};
+                padding: 8px 16px;
+                border-radius: 4px;
+                margin-bottom: 12px;
+                text-align: center;
+                font-size: 1.1em;
+                font-weight: 500;
+            ">
+                {banner_text}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     # Show timestamp with relative time and failed count
     if st.session_state.last_updated:
         relative = format_relative_time(st.session_state.last_updated)
