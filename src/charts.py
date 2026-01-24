@@ -43,6 +43,7 @@ def build_rsi_scatter(
     divergence_data: list[dict] | None = None,
     beta_data: list[float] | None = None,
     color_mode: str = "weekly_rsi",
+    sector_data: list[dict] | None = None,
 ) -> go.Figure:
     """
     Build scatter plot showing daily RSI vs liquidity with configurable color encoding.
@@ -63,6 +64,9 @@ def build_rsi_scatter(
             - score: 0 | 1 | 2 | 4
         beta_data: Optional list of beta residual values (same order as coin_data)
         color_mode: "weekly_rsi" or "beta_residual"
+        sector_data: Optional list of sector dicts (same order as coin_data):
+            - sector: Sector name (e.g., "L1", "DeFi")
+            - sector_rank: "best" | "worst" | None
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -212,13 +216,28 @@ def build_rsi_scatter(
         # Fallback if lengths don't match
         divergence_data = [{"type": "none", "score": 0} for _ in coin_data]
 
+    # Build sector info (default if not provided)
+    if sector_data is None:
+        sector_data = [{"sector": "Other", "sector_rank": None} for _ in coin_data]
+    elif len(sector_data) != len(coin_data):
+        sector_data = [{"sector": "Other", "sector_rank": None} for _ in coin_data]
+
     # Prepare customdata for enhanced tooltips:
-    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score, beta, residual]
+    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score, beta, residual, sector, sector_rank]
     customdata = []
-    for i, (c, d) in enumerate(zip(coin_data, divergence_data)):
+    for i, (c, d, s) in enumerate(zip(coin_data, divergence_data, sector_data)):
         beta_info = c.get("beta_info")
         beta_val = beta_info.get("beta", 0) if beta_info else 0
         residual_val = beta_info.get("residual", 0) if beta_info else 0
+        # Format sector rank as badge text
+        sector_rank = s.get("sector_rank")
+        if sector_rank == "best":
+            rank_badge = " - Best in sector"
+        elif sector_rank == "worst":
+            rank_badge = " - Worst in sector"
+        else:
+            rank_badge = ""
+
         customdata.append([
             c["name"],
             format_currency(c["price"]),
@@ -229,6 +248,8 @@ def build_rsi_scatter(
             d["score"],
             beta_val,
             residual_val,
+            s.get("sector", "Other"),
+            rank_badge,
         ])
 
     # Group coins by divergence type for efficient trace rendering
@@ -260,6 +281,7 @@ def build_rsi_scatter(
         return [values[i] for i in indices]
 
     # Common hovertemplate for all traces
+    # customdata indices: 9=sector, 10=sector_rank_badge (pre-formatted)
     if color_mode == "beta_residual":
         hovertemplate = (
             "<b>%{customdata[0]}</b> (%{text})<br>"
@@ -269,6 +291,7 @@ def build_rsi_scatter(
             "Daily RSI: %{x:.1f}<br>"
             "Weekly RSI: %{customdata[4]:.1f}<br>"
             "Beta: %{customdata[7]:.2f} | Residual: %{customdata[8]:+.1f}<br>"
+            "Sector: %{customdata[9]}%{customdata[10]}<br>"
             "Divergence: %{customdata[5]} (score %{customdata[6]})"
             "<extra></extra>"
         )
@@ -280,6 +303,7 @@ def build_rsi_scatter(
             "Market Cap: %{customdata[3]}<br>"
             "Daily RSI: %{x:.1f}<br>"
             "Weekly RSI: %{customdata[4]:.1f}<br>"
+            "Sector: %{customdata[9]}%{customdata[10]}<br>"
             "Divergence: %{customdata[5]} (score %{customdata[6]})"
             "<extra></extra>"
         )

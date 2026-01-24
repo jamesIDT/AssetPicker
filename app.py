@@ -469,12 +469,21 @@ if st.session_state.coin_data is not None:
                 else:
                     beta_residuals.append(0)
 
+        # Extract sector data for tooltips
+        sector_data = []
+        for c in st.session_state.coin_data:
+            sector_data.append({
+                "sector": c.get("sector", "Other"),
+                "sector_rank": c.get("sector_rank"),
+            })
+
         # Build and display chart - responsive square
         fig = build_rsi_scatter(
             st.session_state.coin_data,
             st.session_state.divergence_data,
             beta_data=beta_residuals,
             color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
+            sector_data=sector_data,
         )
         st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 
