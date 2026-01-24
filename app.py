@@ -12,9 +12,11 @@ from src.coingecko import CoinGeckoClient
 from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
+    calculate_zscore,
     detect_divergence,
     detect_regime,
 )
+from src.sectors import calculate_sector_rsi, get_sector
 from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
@@ -288,6 +290,73 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             div_type = weekly_div["type"]
 
         divergence_result.append({"type": div_type, "score": score})
+
+    # Calculate sector RSI and rankings
+    # Build list for sector calculation (need id, daily_rsi)
+    coins_for_sector = []
+    for i, coin_id in enumerate(coin_ids):
+        if coin_id in market_lookup and coin_id in history:
+            market = market_lookup[coin_id]
+            hist = history[coin_id]
+            daily_rsi_val = get_daily_rsi(hist)
+            if daily_rsi_val is not None:
+                coins_for_sector.append({
+                    "id": coin_id,
+                    "daily_rsi": daily_rsi_val,
+                    "market_cap": market.get("market_cap", 0),
+                })
+
+    sector_rsi = calculate_sector_rsi(coins_for_sector)
+
+    # Now add sector info, sector_rank, and zscore_info to each result coin
+    # Build a lookup from symbol to result index for efficient update
+    coin_id_to_result_idx = {}
+    for i, coin_id in enumerate(coin_ids):
+        if coin_id in market_lookup:
+            symbol = market_lookup[coin_id].get("symbol", "").upper()
+            # Find the result entry with this symbol
+            for j, r in enumerate(result):
+                if r["symbol"] == symbol:
+                    coin_id_to_result_idx[coin_id] = j
+                    break
+
+    for coin_id, result_idx in coin_id_to_result_idx.items():
+        sector = get_sector(coin_id)
+        result[result_idx]["sector"] = sector
+        result[result_idx]["id"] = coin_id
+
+        # Determine sector ranking
+        sector_rank = None
+        if sector in sector_rsi:
+            sector_info = sector_rsi[sector]
+            sector_coins = sector_info.get("coins", [])
+            if len(sector_coins) >= 2:
+                # Get RSI values for all coins in this sector
+                sector_coin_rsi = []
+                for c in coins_for_sector:
+                    if c["id"] in sector_coins:
+                        sector_coin_rsi.append((c["id"], c["daily_rsi"]))
+
+                if len(sector_coin_rsi) >= 2:
+                    # Sort by daily_rsi (lowest = most oversold = best opportunity)
+                    sector_coin_rsi.sort(key=lambda x: x[1])
+                    if sector_coin_rsi[0][0] == coin_id:
+                        sector_rank = "best"
+                    elif sector_coin_rsi[-1][0] == coin_id:
+                        sector_rank = "worst"
+
+        result[result_idx]["sector_rank"] = sector_rank
+
+        # Calculate z-score using daily RSI history
+        zscore_info = None
+        if coin_id in history:
+            hist = history[coin_id]
+            daily_closes = extract_closes(hist)
+            daily_rsi_history = get_rsi_history(daily_closes)
+            if len(daily_rsi_history) >= 10:
+                zscore_info = calculate_zscore(daily_rsi_history, lookback=90)
+
+        result[result_idx]["zscore_info"] = zscore_info
 
     return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi
 
