@@ -13,8 +13,10 @@ from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
     calculate_zscore,
+    classify_signal_lifecycle,
     detect_divergence,
     detect_regime,
+    detect_volatility_regime,
 )
 from src.sectors import calculate_sector_rsi, get_sector
 from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
@@ -241,6 +243,40 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                     aligned_coin_returns, aligned_btc_returns, daily_rsi, btc_daily_rsi
                 )
 
+        # Calculate signal lifecycle for oversold and overbought
+        prices = hist.get("prices", [])
+        daily_closes = extract_closes(hist)
+        daily_rsi_history = get_rsi_history(daily_closes)
+
+        lifecycle_oversold = None
+        lifecycle_overbought = None
+        if len(daily_rsi_history) >= 5:
+            lifecycle_oversold = classify_signal_lifecycle(
+                daily_rsi_history, extreme_threshold=30.0, is_oversold=True
+            )
+            lifecycle_overbought = classify_signal_lifecycle(
+                daily_rsi_history, extreme_threshold=70.0, is_oversold=False
+            )
+
+        # Calculate volatility regime
+        volatility = None
+        if len(daily_closes) >= 57:  # 4 * 14 + 1
+            volatility = detect_volatility_regime(daily_closes, period=14)
+
+        # Calculate price change since signal started
+        price_change_pct = None
+        current_price = market.get("current_price", 0)
+        if lifecycle_oversold and lifecycle_oversold.get("state") != "none":
+            days_in = lifecycle_oversold.get("days_in_zone", 0)
+            if days_in > 0 and days_in <= len(daily_closes) and current_price > 0:
+                entry_price = daily_closes[-(days_in + 1)] if days_in + 1 <= len(daily_closes) else daily_closes[0]
+                price_change_pct = ((current_price - entry_price) / entry_price) * 100
+        elif lifecycle_overbought and lifecycle_overbought.get("state") != "none":
+            days_in = lifecycle_overbought.get("days_in_zone", 0)
+            if days_in > 0 and days_in <= len(daily_closes) and current_price > 0:
+                entry_price = daily_closes[-(days_in + 1)] if days_in + 1 <= len(daily_closes) else daily_closes[0]
+                price_change_pct = ((current_price - entry_price) / entry_price) * 100
+
         result.append(
             {
                 "symbol": market.get("symbol", "").upper(),
@@ -252,13 +288,14 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 "volume": volume,
                 "market_cap": mcap,
                 "beta_info": beta_info,
+                "lifecycle_oversold": lifecycle_oversold,
+                "lifecycle_overbought": lifecycle_overbought,
+                "volatility": volatility,
+                "price_change_pct": price_change_pct,
             }
         )
 
-        # Calculate divergence data
-        prices = hist.get("prices", [])
-        daily_closes = extract_closes(hist)
-        daily_rsi_history = get_rsi_history(daily_closes)
+        # Calculate divergence data (reuse prices, daily_closes, daily_rsi_history from above)
 
         # Weekly data for weekly divergence
         weekly_closes = aggregate_to_weekly(prices)
