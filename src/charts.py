@@ -708,46 +708,47 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
     if y_max < 1.5:
         y_max = 1.5
 
+    # Dark theme: slightly more opaque for visibility on dark backgrounds
     # Top-Left: Decelerating + High Vol = Exhausting (orange tint)
     fig.add_shape(
         type="rect", x0=x_min, x1=0, y0=1.3, y1=y_max,
-        fillcolor="rgba(255, 152, 0, 0.08)", line_width=0, layer="below"
+        fillcolor="rgba(255, 152, 0, 0.12)", line_width=0, layer="below"
     )
     # Top-Right: Accelerating + High Vol = Explosive (red tint)
     fig.add_shape(
         type="rect", x0=0, x1=x_max, y0=1.3, y1=y_max,
-        fillcolor="rgba(244, 67, 54, 0.08)", line_width=0, layer="below"
+        fillcolor="rgba(244, 67, 54, 0.12)", line_width=0, layer="below"
     )
     # Bottom-Left: Decelerating + Compressed = Dormant (gray tint)
     fig.add_shape(
         type="rect", x0=x_min, x1=0, y0=y_min, y1=0.7,
-        fillcolor="rgba(158, 158, 158, 0.08)", line_width=0, layer="below"
+        fillcolor="rgba(158, 158, 158, 0.10)", line_width=0, layer="below"
     )
     # Bottom-Right: Accelerating + Compressed = Coiled Spring (green tint - BEST)
     fig.add_shape(
         type="rect", x0=0, x1=x_max, y0=y_min, y1=0.7,
-        fillcolor="rgba(76, 175, 80, 0.12)", line_width=0, layer="below"
+        fillcolor="rgba(76, 175, 80, 0.15)", line_width=0, layer="below"
     )
 
-    # Add quadrant boundary lines
+    # Add quadrant boundary lines (cream color for dark theme)
     # Vertical line at x=0
     fig.add_shape(
         type="line", x0=0, x1=0, y0=y_min, y1=y_max,
-        line={"color": "rgba(0,0,0,0.2)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
     )
     # Horizontal line at y=0.7 (compressed threshold)
     fig.add_shape(
         type="line", x0=x_min, x1=x_max, y0=0.7, y1=0.7,
-        line={"color": "rgba(0,0,0,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
     )
     # Horizontal line at y=1.3 (expanded threshold)
     fig.add_shape(
         type="line", x0=x_min, x1=x_max, y0=1.3, y1=1.3,
-        line={"color": "rgba(0,0,0,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
     )
 
-    # Add quadrant labels as annotations
-    label_font = {"size": 24, "color": "rgba(0,0,0,0.12)", "family": "Arial Black"}
+    # Add quadrant labels as annotations (cream color for dark theme)
+    label_font = {"size": 24, "color": "rgba(255,255,227,0.10)", "family": "Arial Black"}
 
     # Top-Right: Explosive Move
     fig.add_annotation(
@@ -778,7 +779,7 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
             mode="markers+text",
             text=symbols,
             textposition="top center",
-            textfont={"size": 9},
+            textfont={"size": 9, "color": "#FFFFE3"},
             customdata=customdata,
             marker={
                 "size": 12,
@@ -790,8 +791,10 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
                     "title": "Daily RSI",
                     "tickvals": [0, 25, 50, 75, 100],
                     "len": 0.8,
+                    "tickfont": {"color": "#FFFFE3"},
+                    "title_font": {"color": "#FFFFE3"},
                 },
-                "line": {"width": 1, "color": "rgba(0,0,0,0.3)"},
+                "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
             },
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"
@@ -812,16 +815,21 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
         xaxis={
             "range": [x_min, x_max],
             "zeroline": True,
-            "zerolinecolor": "rgba(0,0,0,0.1)",
-            "gridcolor": "rgba(0,0,0,0.05)",
+            "zerolinecolor": "rgba(255, 255, 227, 0.15)",
+            "gridcolor": "rgba(255, 255, 227, 0.08)",
+            "title_font": {"color": "#FFFFE3"},
+            "tickfont": {"color": "#FFFFE3"},
         },
         yaxis={
             "range": [y_min, y_max],
             "zeroline": False,
-            "gridcolor": "rgba(0,0,0,0.05)",
+            "gridcolor": "rgba(255, 255, 227, 0.08)",
+            "title_font": {"color": "#FFFFE3"},
+            "tickfont": {"color": "#FFFFE3"},
         },
         showlegend=False,
-        plot_bgcolor="white",
+        paper_bgcolor="#4A4A4A",
+        plot_bgcolor="rgba(90, 90, 90, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
         height=500,
