@@ -2,41 +2,58 @@
 
 # Sector mappings for major crypto assets
 SECTOR_MAPPINGS = {
-    # Layer 1s
-    "bitcoin": "L1",
-    "ethereum": "L1",
-    "solana": "L1",
-    "cardano": "L1",
-    "avalanche-2": "L1",
-    "polkadot": "L1",
-    "near": "L1",
-    "cosmos": "L1",
-    # DeFi
+    # Majors (bitcoin -> avalanche-2)
+    "bitcoin": "Majors",
+    "ethereum": "Majors",
+    "solana": "Majors",
+    "binancecoin": "Majors",
+    "sui": "Majors",
+    "tron": "Majors",
+    "avalanche-2": "Majors",
+    # DeFi (uniswap -> thorchain)
     "uniswap": "DeFi",
     "aave": "DeFi",
-    "lido-dao": "DeFi",
     "maker": "DeFi",
-    "compound-governance-token": "DeFi",
-    # AI/Compute
+    "chainlink": "DeFi",
+    "lido-dao": "DeFi",
+    "pendle": "DeFi",
+    "morpho": "DeFi",
+    "aerodrome-finance": "DeFi",
+    "euler": "DeFi",
+    "jupiter-exchange-solana": "DeFi",
+    "meteora": "DeFi",
+    "jito-governance-token": "DeFi",
+    "raydium": "DeFi",
+    "lighter": "DeFi",
+    "curve-dao-token": "DeFi",
+    "havven": "DeFi",
+    "hyperliquid": "DeFi",
+    "ethena": "DeFi",
+    "pump-fun": "DeFi",
+    "thorchain": "DeFi",
+    # AI (bittensor -> freysa-ai)
+    "bittensor": "AI",
+    "near": "AI",
     "render-token": "AI",
     "fetch-ai": "AI",
-    "singularitynet": "AI",
+    "worldcoin-wld": "AI",
     "akash-network": "AI",
-    # Gaming/Metaverse
-    "immutable-x": "Gaming",
-    "the-sandbox": "Gaming",
-    "axie-infinity": "Gaming",
-    "gala": "Gaming",
-    # Memes
-    "dogecoin": "Meme",
-    "shiba-inu": "Meme",
-    "pepe": "Meme",
-    "floki": "Meme",
-    # Infrastructure
-    "chainlink": "Infra",
-    "the-graph": "Infra",
-    "filecoin": "Infra",
-    "arweave": "Infra",
+    "the-graph": "AI",
+    "io": "AI",
+    "virtual-protocol": "AI",
+    "autonolas": "AI",
+    "elizaos": "AI",
+    "ai-rig-complex": "AI",
+    "freysa-ai": "AI",
+    # DeSci (bio-protocol -> cerebrum-dao)
+    "bio-protocol": "DeSci",
+    "vitadao": "DeSci",
+    "researchcoin": "DeSci",
+    "origintrail": "DeSci",
+    "aethir": "DeSci",
+    "valleydao": "DeSci",
+    "hairdao": "DeSci",
+    "cerebrum-dao": "DeSci",
 }
 
 

@@ -10,29 +10,48 @@ Surface crypto assets where both daily AND weekly RSI align in extreme zones (bo
 
 ## Current State
 
-**Version:** v1.0 MVP shipped 2026-01-23
-**Stack:** Python 3.x + Streamlit + Plotly + httpx
-**LOC:** 573 lines of Python
-**Status:** Feature complete, production-ready for personal use
+**Version:** v2.0 Advanced Screening shipped 2026-01-24
+**Stack:** Python 3.x + Streamlit + Plotly + httpx + pandas
+**LOC:** ~3,700 lines of Python
+**Status:** Full multi-factor opportunity detection system, production-ready
 
 ## Requirements
 
 ### Validated
 
-- Scatter plot with daily RSI (x-axis) vs volume/mcap ratio (y-axis) — v1.0
-- Color encoding for weekly RSI (green=oversold → red=overbought) — v1.0
-- Visual zone shading for oversold (<30) and overbought (>70) regions — v1.0
-- Tooltip on hover showing coin stats (name, price, RSI values, volume, mcap) — v1.0
-- "Potential Opportunities" list below chart (daily RSI < 30) — v1.0
-- "Exercise Caution" list below chart (daily RSI > 70) — v1.0
-- Highlight coins where both daily AND weekly RSI align in extreme zones — v1.0
-- JSON config file for watchlist management (30-50 coins) — v1.0
-- Manual refresh button with timestamp display — v1.0
-- CoinGecko Pro API integration for market data — v1.0
+**v1.0 Core Features:**
+- Scatter plot with daily RSI (x-axis) vs volume/mcap ratio (y-axis)
+- Color encoding for weekly RSI (green=oversold → red=overbought)
+- Visual zone shading for oversold (<30) and overbought (>70) regions
+- Tooltip on hover showing coin stats (name, price, RSI values, volume, mcap)
+- "Potential Opportunities" list below chart (daily RSI < 30)
+- "Exercise Caution" list below chart (daily RSI > 70)
+- Highlight coins where both daily AND weekly RSI align in extreme zones
+- JSON config file for watchlist management (48 coins)
+- Manual refresh button with timestamp display
+- CoinGecko Pro API integration for market data
+
+**v2.0 Advanced Screening:**
+- Regime detection (Bull ↗, Bull ↘, Bear ↗, Bear ↘, Transition) with banner display
+- RSI acceleration calculation (velocity + second derivative)
+- Z-score statistical extremes with optional labels
+- Beta-adjusted relative strength with color mode toggle
+- Sector classification (Majors, DeFi, AI, DeSci) with weighted RSI
+- Multi-timeframe divergence detection with scoring (1/2/4)
+- Visual divergence markers (+/◆) with ring-based score layering
+- Signal lifecycle stages (Fresh/Confirmed/Extended/Resolving)
+- Volatility regime detection (Compressed/Normal/High Vol)
+- Conviction ratings (★★★ = Fresh + Compressed)
+- Sector momentum with rotation signals (RSI < 35 AND rising)
+- Acceleration Quadrant (4-zone chart: acceleration × volatility)
+- Funding rate integration (Binance/Bybit perpetual rates)
+- Open interest tracking for positioning imbalance
+- Opportunity decay score with multi-factor confluence
+- Opportunity Leaderboard with Long/Short tabs and filters
 
 ### Active
 
-(None — v1.0 complete)
+(None — v2.0 complete)
 
 ### Out of Scope
 
@@ -77,6 +96,12 @@ Surface crypto assets where both daily AND weekly RSI align in extreme zones (bo
 | Log scale Y-axis | Handles wide vol/mcap ratio range effectively | Good |
 | Tuple return for partial failures | Clean error handling without losing good data | Good |
 | st.stop() for unrecoverable errors | Prevents cascading issues in UI | Good |
+| Divergence markers (+/◆) | Shape instantly conveys bull/bear direction | Good |
+| Ring layering for scores | Visual hierarchy without cluttering chart | Good |
+| 4-sector classification | Majors/DeFi/AI/DeSci covers 48-coin watchlist | Good |
+| Multiplicative opportunity score | Base × Freshness × Confluence captures decay | Good |
+| Signal lifecycle stages | Clear progression from Fresh → Resolving | Good |
+| Shared filters above tabs | Persists state across Long/Short switching | Good |
 
 ---
-*Last updated: 2026-01-23 after v1.0 milestone*
+*Last updated: 2026-01-24 after v2.0 milestone*

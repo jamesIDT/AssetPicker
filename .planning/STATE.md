@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-01-23)
+See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** Surface crypto assets where both daily AND weekly RSI align in extreme zones with adequate liquidity
-**Current focus:** v2.0 Advanced Screening COMPLETE — All 14 phases shipped
+**Current focus:** v2.0 Advanced Screening ARCHIVED — Milestone shipped and archived
 
 ## Current Position
 
-Phase: 14 of 14 (Opportunity Leaderboard)
-Plan: 1 of 1 complete
-Status: Milestone complete
-Last activity: 2026-01-24 — Completed 14-01-PLAN.md
+Phase: N/A (between milestones)
+Plan: N/A
+Status: v2.0 shipped, awaiting v3.0 roadmap
+Last activity: 2026-01-24 — Archived v2.0 milestone
 
-Progress: ██████████████ 100% (14/14 phases)
+Progress: ██████████████ 100% (14/14 phases complete)
 
 ## Performance Metrics
 
@@ -64,5 +64,12 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Completed 14-01-PLAN.md (v2.0 Milestone complete)
-Resume file: None - v2.0 Advanced Screening milestone shipped
+Stopped at: Archived v2.0 milestone
+Resume file: None - v2.0 Advanced Screening milestone archived
+
+## Milestones Completed
+
+| Version | Name | Phases | Shipped |
+|---------|------|--------|---------|
+| v1.0 | MVP | 1-6 | 2026-01-23 |
+| v2.0 | Advanced Screening | 7-14 | 2026-01-24 |

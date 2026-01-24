@@ -60,172 +60,20 @@ None (crypto/trading domain knowledge embedded in feature specs)
 
 </details>
 
-### ✅ v2.0 Advanced Screening (SHIPPED 2026-01-24)
+<details>
+<summary>✅ v2.0 Advanced Screening (Phases 7-14) — SHIPPED 2026-01-24</summary>
 
-**Milestone Goal:** Transform basic RSI screener into a multi-dimensional opportunity detection system with regime awareness, divergence detection, sector analysis, funding rate confluence, and composite scoring.
+See [v2.0 Archive](milestones/v2.0-ROADMAP.md) for full details.
 
----
+**Key Accomplishments:**
+- Multi-factor opportunity scoring with composite decay formula
+- Visual divergence markers (+/◆) with ring-based scoring
+- Sector rotation detection with momentum signals
+- Acceleration Quadrant identifying "coiled spring" opportunities
+- Signal lifecycle classification with conviction ratings
+- Funding rate confluence from Binance/Bybit APIs
 
-### Phase 7: Data Layer Extensions
-**Goal**: Build all calculation engines before any UI work
-**Depends on**: Phase 6 (v1.0 complete)
-**Research**: Likely (z-score statistics, beta calculation formulas)
-**Research topics**: Statistical z-score implementation, rolling beta calculation, sector classification approach
-**Plans**: TBD
-
-Calculations to implement:
-1. **Regime Transition Detection** — BTC weekly RSI trend + momentum for bull/bear/transition states
-2. **RSI Acceleration** — Second derivative of RSI (velocity + acceleration)
-3. **Z-Score Thresholds** — Per-coin rolling mean/stddev for statistical extreme detection
-4. **Mean Reversion Probability** — Historical success rate at similar RSI levels
-5. **Beta-Adjusted Relative Strength** — Each coin's beta to BTC, expected vs actual RSI
-6. **Sector Classification** — Group coins by narrative (L1, DeFi, AI, etc.) with sector-level RSI
-7. **Multi-Timeframe Divergence** — Daily + weekly divergence detection with scoring (1/2/4)
-8. **Signal Lifecycle State** — Fresh/Confirmed/Extended/Resolving classification
-9. **Volatility Regime** — ATR compression/expansion detection
-10. **Opportunity Decay Score** — Composite formula with time decay
-
----
-
-### Phase 8: Funding Rate Integration
-**Goal**: Integrate free Binance/Bybit APIs for perpetual futures positioning data
-**Depends on**: Phase 7
-**Research**: Likely (external API)
-**Research topics**: Binance funding rate API, Bybit funding rate API, open interest endpoints, rate limits
-**Plans**: TBD
-
-Deliverables:
-1. **Funding Rate Fetcher** — Get current funding rates for coins with perp markets
-2. **Open Interest Changes** — Track OI increases/decreases
-3. **Positioning Matrix** — Combine funding + OI into crowded long/short detection
-4. **Confluence Detection** — Flag when funding aligns with RSI extremes
-
----
-
-### Phase 9: Visual Marker System
-**Goal**: Implement custom divergence icons with scoring visualization on scatter plot
-**Depends on**: Phase 7 (divergence scores calculated)
-**Research**: Unlikely (Plotly customization)
-**Plans**: TBD
-
-Visual encoding spec:
-- **Bullish divergence**: Plus sign (+) shape instead of circle
-- **Bearish divergence**: Diamond (◆) shape instead of circle
-- **Score 1 (single timeframe)**: Bold inner shape only
-- **Score 2 (strong single)**: Bold inner + thin outer ring
-- **Score 4 (multi-timeframe confluence)**: Bold inner + bold outer ring
-- **Neutral (no divergence)**: Standard circle
-
-Implementation:
-1. Custom Plotly marker symbols
-2. Score-based sizing/layering
-3. Legend explaining the visual system
-4. Tooltip includes divergence details
-
----
-
-### Phase 10: Main Chart Enhancements
-**Goal**: Enhance existing scatter plot with regime context, beta coloring, sector strength
-**Depends on**: Phase 7, Phase 8
-**Research**: Unlikely (extending existing Plotly code)
-**Plans**: TBD
-
-Enhancements:
-1. **Regime Banner** — Persistent header showing current regime (Bull ↗, Bull ↘, Bear ↗, Bear ↘, Transition)
-2. **Beta-Adjusted Coloring** — Optional mode: color by residual (underperforming/expected/outperforming vs BTC beta)
-3. **Sector-Relative Badges** — Small indicator if coin is best/worst in its sector
-4. **Z-Score Labels** — Optional display of statistical extreme (-2.3σ) next to coin symbols
-5. **Toggle Controls** — UI switches between color modes (weekly RSI vs beta residual)
-
----
-
-### Phase 11: Signal Lifecycle Display
-**Goal**: New combined view showing signal lifecycle + volatility context (your ideas #7 + #8)
-**Depends on**: Phase 7
-**Research**: Unlikely (internal UI)
-**Plans**: TBD
-
-Display components:
-1. **Signal Lifecycle Table** — All coins with extreme RSI, showing:
-   - Lifecycle stage badge (🆕 Fresh, ✓ Confirmed, ⏳ Extended, ↗ Resolving)
-   - Days in zone
-   - Price change since signal
-   - Mean reversion probability from historical data
-2. **Volatility Context Column** — Show volatility regime (⚡ Compressed, 🌊 High Vol)
-3. **Combined Interpretation** — Fresh + Compressed = highest conviction
-4. **Explanatory UI** — Brief description of what each badge means
-
----
-
-### Phase 12: Sector Momentum View
-**Goal**: Sector rotation visualization (your idea #9)
-**Depends on**: Phase 7
-**Research**: Unlikely (internal patterns)
-**Plans**: TBD
-
-Display components:
-1. **Sector Bar Chart** — Horizontal bars showing sector RSI
-2. **7-Day Momentum Arrow** — Direction indicator for each sector
-3. **Rotation Signal** — Highlight sectors: RSI < 35 AND 7d change > 0 (just turning)
-4. **Time Since Bottom** — Days since sector hit lowest RSI
-5. **Drill-Down** — Click sector to filter main scatter to just those coins
-
----
-
-### Phase 13: Acceleration Quadrant
-**Goal**: New quadrant display combining RSI acceleration + volatility regime (your ideas #10 + #11)
-**Depends on**: Phase 7
-**Research**: Unlikely (Plotly quadrant similar to main chart)
-**Plans**: TBD
-
-Axes:
-- **X-axis**: RSI Acceleration (negative = decelerating, positive = accelerating)
-- **Y-axis**: Volatility Ratio (compressed < 0.7 | normal | expanded > 1.3)
-
-Quadrants:
-| Position | Meaning |
-|----------|---------|
-| Top-Right | Accelerating + High Vol = Explosive move in progress |
-| Top-Left | Decelerating + High Vol = Move exhausting |
-| Bottom-Right | Accelerating + Compressed = Coiled spring (BEST SIGNAL) |
-| Bottom-Left | Decelerating + Compressed = Dormant |
-
-Visual:
-1. Same scatter plot style as main chart
-2. Quadrant labels/colors
-3. Color dots by current RSI level
-4. Tooltips with full context
-
----
-
-### Phase 14: Opportunity Leaderboard
-**Goal**: Final integration — ranked table with composite decay score (your idea #12)
-**Depends on**: All prior phases (7-13)
-**Research**: Unlikely (internal aggregation)
-**Plans**: TBD
-
-Score formula:
-```
-Score = Base_Score × Freshness_Multiplier × Confluence_Multiplier
-
-Where:
-Base_Score = abs(Z-score of RSI)
-Freshness = 1.0 if signal < 3 days, decay to 0.3 at 14+ days
-Confluence = 1.0 + sum of:
-  - Weekly RSI also extreme: +0.2
-  - Divergence present: +0.3 (or +0.5 for multi-TF)
-  - Positive decorrelation: +0.2
-  - Volatility compressed: +0.2
-  - Sector turning: +0.1
-  - Funding alignment: +0.2
-```
-
-Display:
-1. **Ranked Table** — All coins sorted by opportunity score (highest first)
-2. **Score Breakdown** — Expandable row showing factor contributions
-3. **Bull/Bear Split** — Tabs for long opportunities vs short opportunities
-4. **Quick Filters** — Filter by sector, minimum score, signal age
-5. **Explanatory Footer** — How the score works
+</details>
 
 ---
 
