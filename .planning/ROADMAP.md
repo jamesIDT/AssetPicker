@@ -12,7 +12,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 
 - ✅ **v1.0 MVP** - Phases 1-6 (shipped 2026-01-23)
 - ✅ **v2.0 Advanced Screening** - Phases 7-14 (shipped 2026-01-24)
-- 🚧 **v3.0 UX Dashboard Redesign** - Phases 15-20 (in progress)
+- ✅ **v3.0 UX Dashboard Redesign** - Phases 15-20 (shipped 2026-01-24)
 
 ## Phases
 
@@ -34,7 +34,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 17: Chart Theming** - Plotly charts updated to dark theme with new palette
 - [x] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
 - [x] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
-- [ ] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
+- [x] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
 
 ## Phase Details
 
@@ -82,7 +82,7 @@ See [v2.0 Archive](milestones/v2.0-ROADMAP.md) for full details.
 
 </details>
 
-### 🚧 v3.0 UX Dashboard Redesign (In Progress)
+### ✅ v3.0 UX Dashboard Redesign (SHIPPED 2026-01-24)
 
 **Milestone Goal:** Transform AssetPicker into a professional crypto analyst dashboard with hypothesis-validator inspired dark theme, side-by-side quadrants, and improved information hierarchy.
 
@@ -158,11 +158,11 @@ Changes:
 Plans:
 - [x] 19-01: Collapsible How to Read panel + minimal corner legend
 
-#### Phase 20: Polish & Integration
+#### Phase 20: Polish & Integration (COMPLETE)
 **Goal**: Final visual polish, responsive testing, remove redundant elements
 **Depends on**: Phase 18, Phase 19
 **Research**: Unlikely (internal refinement)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Tasks:
 - Remove redundant "Potential Opportunities" / "Exercise Caution" lists (merged into Leaderboard)
@@ -171,7 +171,7 @@ Tasks:
 - Error state styling
 
 Plans:
-- [ ] 20-01: TBD
+- [x] 20-01: Remove redundant lists, style alerts, polish spacing
 
 ---
 
@@ -201,4 +201,4 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 17. Chart Theming | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 18. Component Refinement | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 19. Legends & Onboarding | v3.0 | 1/1 | Complete | 2026-01-24 |
-| 20. Polish & Integration | v3.0 | 0/? | Not started | - |
+| 20. Polish & Integration | v3.0 | 1/1 | Complete | 2026-01-24 |

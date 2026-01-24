@@ -128,16 +128,16 @@ def build_rsi_scatter(
     # Add quadrant divider lines (cream color for dark theme)
     fig.add_shape(
         type="line", x0=50, x1=50, y0=y_range[0], y1=y_range[1],
-        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
     )
     fig.add_shape(
         type="line", x0=0, x1=100, y0=y_mid, y1=y_mid,
-        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
     )
 
     # Add quadrant labels - x as RSI value, y as domain fraction (cream color for dark theme)
-    label_font = {"size": 36, "color": "rgba(255,255,227,0.08)", "family": "Arial Black"}
-    desc_font = {"size": 18, "color": "rgba(255,255,227,0.06)"}
+    label_font = {"size": 36, "color": "rgba(246,248,247,0.08)", "family": "Arial Black"}
+    desc_font = {"size": 18, "color": "rgba(246,248,247,0.06)"}
 
     # Top-left: Capitulation (RSI 0-50, top half)
     fig.add_annotation(
@@ -403,7 +403,7 @@ def build_rsi_scatter(
                 mode="markers+text",
                 text=subset(neutral_indices, text_labels),
                 textposition="top center",
-                textfont={"size": 9, "color": "#FFFFE3"},
+                textfont={"size": 9, "color": "#F6F8F7"},
                 customdata=subset(neutral_indices, customdata),
                 marker={
                     "size": 10,
@@ -416,8 +416,8 @@ def build_rsi_scatter(
                         "title": colorbar_title,
                         "tickvals": colorbar_tickvals,
                         "len": 0.8,
-                        "tickfont": {"color": "#FFFFE3"},
-                        "title_font": {"color": "#FFFFE3"},
+                        "tickfont": {"color": "#F6F8F7"},
+                        "title_font": {"color": "#F6F8F7"},
                     },
                     "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
                 },
@@ -435,7 +435,7 @@ def build_rsi_scatter(
                 mode="markers+text",
                 text=subset(bullish_indices, text_labels),
                 textposition="top center",
-                textfont={"size": 9, "color": "#FFFFE3"},
+                textfont={"size": 9, "color": "#F6F8F7"},
                 customdata=subset(bullish_indices, customdata),
                 marker={
                     "size": 12,
@@ -448,8 +448,8 @@ def build_rsi_scatter(
                         "title": colorbar_title,
                         "tickvals": colorbar_tickvals,
                         "len": 0.8,
-                        "tickfont": {"color": "#FFFFE3"},
-                        "title_font": {"color": "#FFFFE3"},
+                        "tickfont": {"color": "#F6F8F7"},
+                        "title_font": {"color": "#F6F8F7"},
                     },
                     "line": {"width": 2, "color": "rgba(255,255,255,0.5)"},
                 },
@@ -467,7 +467,7 @@ def build_rsi_scatter(
                 mode="markers+text",
                 text=subset(bearish_indices, text_labels),
                 textposition="top center",
-                textfont={"size": 9, "color": "#FFFFE3"},
+                textfont={"size": 9, "color": "#F6F8F7"},
                 customdata=subset(bearish_indices, customdata),
                 marker={
                     "size": 12,
@@ -480,8 +480,8 @@ def build_rsi_scatter(
                         "title": colorbar_title,
                         "tickvals": colorbar_tickvals,
                         "len": 0.8,
-                        "tickfont": {"color": "#FFFFE3"},
-                        "title_font": {"color": "#FFFFE3"},
+                        "tickfont": {"color": "#F6F8F7"},
+                        "title_font": {"color": "#F6F8F7"},
                     },
                     "line": {"width": 2, "color": "rgba(255,255,255,0.5)"},
                 },
@@ -507,8 +507,8 @@ def build_rsi_scatter(
                         "title": colorbar_title,
                         "tickvals": colorbar_tickvals,
                         "len": 0.8,
-                        "tickfont": {"color": "#FFFFE3"},
-                        "title_font": {"color": "#FFFFE3"},
+                        "tickfont": {"color": "#F6F8F7"},
+                        "title_font": {"color": "#F6F8F7"},
                     },
                 },
                 showlegend=False,
@@ -524,10 +524,10 @@ def build_rsi_scatter(
         yref="paper",
         text=icon_legend,
         showarrow=False,
-        font={"size": 9, "color": "#FFFFE3"},
+        font={"size": 9, "color": "#F6F8F7"},
         align="right",
-        bgcolor="rgba(90, 90, 90, 0.85)",
-        bordercolor="rgba(255, 255, 227, 0.15)",
+        bgcolor="rgba(74, 79, 94, 0.85)",
+        bordercolor="rgba(246, 248, 247, 0.15)",
         borderwidth=1,
         borderpad=4,
         xanchor="right",
@@ -541,22 +541,22 @@ def build_rsi_scatter(
         xaxis={
             "range": [0, 100],
             "dtick": 25,
-            "gridcolor": "rgba(255, 255, 227, 0.08)",
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
             "zeroline": False,
-            "title_font": {"color": "#FFFFE3"},
-            "tickfont": {"color": "#FFFFE3"},
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
         },
         yaxis={
             "type": "log",
             "range": [log_min, log_max],
-            "gridcolor": "rgba(255, 255, 227, 0.08)",
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
             "zeroline": False,
-            "title_font": {"color": "#FFFFE3"},
-            "tickfont": {"color": "#FFFFE3"},
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
         },
         showlegend=False,
-        paper_bgcolor="#4A4A4A",
-        plot_bgcolor="rgba(90, 90, 90, 0.3)",
+        paper_bgcolor="#3E4253",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
         height=800,
@@ -686,21 +686,21 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
     # Vertical line at x=0
     fig.add_shape(
         type="line", x0=0, x1=0, y0=y_min, y1=y_max,
-        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
     )
     # Horizontal line at y=0.7 (compressed threshold)
     fig.add_shape(
         type="line", x0=x_min, x1=x_max, y0=0.7, y1=0.7,
-        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
     )
     # Horizontal line at y=1.3 (expanded threshold)
     fig.add_shape(
         type="line", x0=x_min, x1=x_max, y0=1.3, y1=1.3,
-        line={"color": "rgba(255,255,227,0.15)", "width": 1, "dash": "dot"}
+        line={"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
     )
 
     # Add quadrant labels as annotations (cream color for dark theme)
-    label_font = {"size": 24, "color": "rgba(255,255,227,0.10)", "family": "Arial Black"}
+    label_font = {"size": 24, "color": "rgba(246,248,247,0.10)", "family": "Arial Black"}
 
     # Top-Right: Explosive Move
     fig.add_annotation(
@@ -731,7 +731,7 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
             mode="markers+text",
             text=symbols,
             textposition="top center",
-            textfont={"size": 9, "color": "#FFFFE3"},
+            textfont={"size": 9, "color": "#F6F8F7"},
             customdata=customdata,
             marker={
                 "size": 12,
@@ -743,8 +743,8 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
                     "title": "Daily RSI",
                     "tickvals": [0, 25, 50, 75, 100],
                     "len": 0.8,
-                    "tickfont": {"color": "#FFFFE3"},
-                    "title_font": {"color": "#FFFFE3"},
+                    "tickfont": {"color": "#F6F8F7"},
+                    "title_font": {"color": "#F6F8F7"},
                 },
                 "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
             },
@@ -767,21 +767,21 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]]) -> go.Figure:
         xaxis={
             "range": [x_min, x_max],
             "zeroline": True,
-            "zerolinecolor": "rgba(255, 255, 227, 0.15)",
-            "gridcolor": "rgba(255, 255, 227, 0.08)",
-            "title_font": {"color": "#FFFFE3"},
-            "tickfont": {"color": "#FFFFE3"},
+            "zerolinecolor": "rgba(246, 248, 247, 0.15)",
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
         },
         yaxis={
             "range": [y_min, y_max],
             "zeroline": False,
-            "gridcolor": "rgba(255, 255, 227, 0.08)",
-            "title_font": {"color": "#FFFFE3"},
-            "tickfont": {"color": "#FFFFE3"},
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
         },
         showlegend=False,
-        paper_bgcolor="#4A4A4A",
-        plot_bgcolor="rgba(90, 90, 90, 0.3)",
+        paper_bgcolor="#3E4253",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
         margin={"l": 60, "r": 100, "t": 30, "b": 60},
         autosize=True,
         height=500,

@@ -47,25 +47,27 @@ st.markdown(
        ================================================================= */
     :root {
         /* Background colors */
-        --bg-0: #4A4A4A;           /* Primary background (dark gray) */
-        --bg-1: #6D8196;           /* Slate blue for panels */
-        --bg-2: #5A5A5A;           /* Slightly lighter gray for hover */
+        --bg-0: #3E4253;           /* Primary background (dark slate) */
+        --bg-1: #4A4F5E;           /* Slightly lighter for panels */
+        --bg-2: #565B6B;           /* Hover states */
 
         /* Text colors */
-        --text-0: #FFFFE3;         /* Cream primary text */
-        --text-1: rgba(255, 255, 227, 0.72);  /* Secondary text */
-        --text-2: rgba(255, 255, 227, 0.54);  /* Tertiary/muted text */
+        --text-0: #F6F8F7;         /* Off-white primary text */
+        --text-1: rgba(246, 248, 247, 0.72);  /* Secondary text */
+        --text-2: rgba(246, 248, 247, 0.54);  /* Tertiary/muted text */
 
         /* Accent colors */
-        --accent: #FFB020;         /* Yellow-orange hero color */
-        --accent-2: #FFD38A;       /* Softer accent for hover */
+        --accent: #B69A5A;         /* Gold/mustard hero color */
+        --accent-2: #D4BA7A;       /* Lighter gold for hover */
+        --copper: #A77C65;         /* Secondary accent (copper) */
+        --mauve: #7C6065;          /* Tertiary accent (dusty rose) */
 
         /* Panel/surface colors */
-        --panel: rgba(109, 129, 150, 0.15);       /* Panel background */
-        --panel-hover: rgba(109, 129, 150, 0.25); /* Panel hover */
+        --panel: rgba(246, 248, 247, 0.04);       /* Panel background */
+        --panel-hover: rgba(246, 248, 247, 0.08); /* Panel hover */
 
         /* Borders and lines */
-        --line: rgba(255, 255, 227, 0.12);        /* Subtle borders */
+        --line: rgba(246, 248, 247, 0.12);        /* Subtle borders */
     }
 
     /* =================================================================
@@ -355,11 +357,11 @@ st.markdown(
     }
 
     /* =================================================================
-       DATAFRAME / TABLE STYLING
+       DATAFRAME / TABLE STYLING - Dark theme
        ================================================================= */
     [data-testid="stDataFrame"],
     .stDataFrame {
-        background-color: var(--panel) !important;
+        background-color: var(--bg-1) !important;
         border: 1px solid var(--line) !important;
         border-radius: 2px !important;
     }
@@ -368,19 +370,20 @@ st.markdown(
     [data-testid="stDataFrame"] th,
     .stDataFrame th,
     [data-testid="stTable"] th {
-        background-color: var(--bg-2) !important;
+        background-color: var(--bg-0) !important;
         color: var(--text-1) !important;
         text-transform: uppercase !important;
         letter-spacing: 0.05em !important;
         font-size: 0.75rem !important;
         font-weight: 500 !important;
-        border-bottom: 1px solid var(--line) !important;
+        border-bottom: 2px solid var(--accent) !important;
     }
 
     /* Table cells */
     [data-testid="stDataFrame"] td,
     .stDataFrame td,
     [data-testid="stTable"] td {
+        background-color: var(--bg-1) !important;
         color: var(--text-0) !important;
         border-bottom: 1px solid var(--line) !important;
     }
@@ -389,7 +392,7 @@ st.markdown(
     [data-testid="stDataFrame"] tr:hover td,
     .stDataFrame tr:hover td,
     [data-testid="stTable"] tr:hover td {
-        background-color: var(--panel-hover) !important;
+        background-color: var(--bg-2) !important;
     }
 
     /* =================================================================
@@ -433,6 +436,44 @@ st.markdown(
 
     .text-muted {
         color: var(--text-2) !important;
+    }
+
+    /* =================================================================
+       SECTION HEADERS - Stage-style with accent
+       ================================================================= */
+    .section-header {
+        color: var(--accent) !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.1em !important;
+        margin-bottom: 0.75rem !important;
+        padding-bottom: 0.5rem !important;
+        border-bottom: 1px solid var(--line) !important;
+    }
+
+    /* =================================================================
+       BORDERED PANEL SYSTEM
+       ================================================================= */
+    .bordered-panel {
+        background: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 2px !important;
+        padding: 1rem !important;
+        margin-bottom: 1rem !important;
+    }
+
+    .bordered-panel:hover {
+        background: var(--panel-hover) !important;
+    }
+
+    .panel-title {
+        color: var(--text-0) !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        margin-bottom: 0.75rem !important;
     }
     </style>
     """,
@@ -939,7 +980,7 @@ if st.session_state.coin_data is not None:
                 text-align: center;
                 font-size: 1.1em;
                 font-weight: 500;
-                color: #FFFFE3;
+                color: #F6F8F7;
             ">
                 {banner_text}
             </div>
@@ -1101,11 +1142,21 @@ if st.session_state.coin_data is not None:
         for c in filtered_coin_data:
             zscore_data.append(c.get("zscore_info"))
 
+        # Section Header: Charts
+        st.markdown(
+            '<div class="section-header">CHARTS — MARKET OVERVIEW</div>',
+            unsafe_allow_html=True,
+        )
+
         # Hero Charts Row - RSI Scatter (65%) | Acceleration Quadrant (35%)
         chart_col1, chart_col2 = st.columns([0.65, 0.35])
 
         with chart_col1:
-            # Build and display RSI Scatter chart
+            # RSI Scatter panel
+            st.markdown(
+                '<div class="bordered-panel"><div class="panel-title">RSI Scatter</div>',
+                unsafe_allow_html=True,
+            )
             fig = build_rsi_scatter(
                 filtered_coin_data,
                 filtered_divergence_data,
@@ -1116,10 +1167,14 @@ if st.session_state.coin_data is not None:
                 show_zscore=show_zscore,
             )
             st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
+            st.markdown('</div>', unsafe_allow_html=True)
 
         with chart_col2:
-            # Acceleration Quadrant
-            st.markdown("### Acceleration Quadrant")
+            # Acceleration Quadrant panel
+            st.markdown(
+                '<div class="bordered-panel"><div class="panel-title">Acceleration Quadrant</div>',
+                unsafe_allow_html=True,
+            )
             # Filter coins with both acceleration and volatility data
             accel_coins = [
                 c for c in st.session_state.coin_data
@@ -1134,10 +1189,13 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # Market Analysis Section - Visible panels (not expanders)
-        st.markdown("---")
-        st.subheader("Market Analysis")
+        # Section Header: Analysis
+        st.markdown(
+            '<div class="section-header">ANALYSIS — OPPORTUNITIES</div>',
+            unsafe_allow_html=True,
+        )
 
         panel_col1, panel_col2 = st.columns(2)
 
@@ -1145,7 +1203,10 @@ if st.session_state.coin_data is not None:
         with panel_col1:
             import pandas as pd
 
-            st.markdown("### Opportunity Leaderboard")
+            st.markdown(
+                '<div class="bordered-panel"><div class="panel-title">Opportunity Leaderboard</div>',
+                unsafe_allow_html=True,
+            )
 
             # Filter coins with opportunity scores
             scored_coins = [
@@ -1290,13 +1351,17 @@ if st.session_state.coin_data is not None:
                         st.caption(f"Showing {len(display_coins)} of {len(filtered_coins)} signals")
             else:
                 st.info("No opportunity scores available. Refresh to load data.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
         # Sector Momentum (right panel)
         with panel_col2:
             import plotly.graph_objects as go
             import pandas as pd
 
-            st.markdown("### Sector Momentum")
+            st.markdown(
+                '<div class="bordered-panel"><div class="panel-title">Sector Momentum</div>',
+                unsafe_allow_html=True,
+            )
 
             # Build coin data for sector momentum calculation
             coins_for_momentum = []
@@ -1343,27 +1408,27 @@ if st.session_state.coin_data is not None:
                     marker_color=colors,
                     text=[f"{arrow}" for arrow in momentum_arrows],
                     textposition="outside",
-                    textfont=dict(size=14, color="#FFFFE3"),
+                    textfont=dict(size=14, color="#F6F8F7"),
                     hovertemplate="<b>%{y}</b><br>RSI: %{x:.1f}<extra></extra>",
                 ))
 
                 # Add vertical line at x=50 (neutral)
-                sector_fig.add_vline(x=50, line_dash="dash", line_color="rgba(255, 255, 227, 0.3)", opacity=1)
+                sector_fig.add_vline(x=50, line_dash="dash", line_color="rgba(246, 248, 247, 0.3)", opacity=1)
 
                 sector_fig.update_layout(
                     xaxis_title="RSI",
                     yaxis_title="",
                     xaxis=dict(
                         range=[0, 100],
-                        title_font=dict(color="#FFFFE3"),
-                        tickfont=dict(color="#FFFFE3"),
-                        gridcolor="rgba(255, 255, 227, 0.08)",
+                        title_font=dict(color="#F6F8F7"),
+                        tickfont=dict(color="#F6F8F7"),
+                        gridcolor="rgba(246, 248, 247, 0.08)",
                     ),
                     yaxis=dict(
-                        tickfont=dict(color="#FFFFE3"),
+                        tickfont=dict(color="#F6F8F7"),
                     ),
-                    paper_bgcolor="#4A4A4A",
-                    plot_bgcolor="rgba(90, 90, 90, 0.3)",
+                    paper_bgcolor="#3E4253",
+                    plot_bgcolor="rgba(74, 79, 94, 0.3)",
                     height=max(250, len(sector_names) * 35),
                     margin=dict(l=20, r=80, t=20, b=40),
                     showlegend=False,
@@ -1394,118 +1459,131 @@ if st.session_state.coin_data is not None:
                 st.dataframe(df, hide_index=True, use_container_width=True)
             else:
                 st.info("No sector data available.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        # Signal Lifecycle Analysis section (collapsed expander at bottom)
-        st.markdown("---")
-        with st.expander("Signal Lifecycle Analysis", expanded=False):
-            # Filter coins with active lifecycle signals
-            lifecycle_coins = []
-            for coin in st.session_state.coin_data:
-                lc_over = coin.get("lifecycle_oversold")
-                lc_overbought = coin.get("lifecycle_overbought")
-                vol = coin.get("volatility")
-                price_chg = coin.get("price_change_pct")
+        # Section Header: Signals
+        st.markdown(
+            '<div class="section-header">SIGNALS — LIFECYCLE ANALYSIS</div>',
+            unsafe_allow_html=True,
+        )
 
-                # Check if oversold signal is active
-                if lc_over and lc_over.get("state") not in ("none", None):
-                    # Determine volatility emoji
-                    vol_regime = vol.get("regime") if vol else "normal"
-                    vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
+        # Signal Lifecycle panel (always visible, no expander)
+        st.markdown(
+            '<div class="bordered-panel">',
+            unsafe_allow_html=True,
+        )
 
-                    # Calculate conviction
-                    state = lc_over.get("state", "")
-                    is_fresh = state == "fresh"
-                    is_confirmed = state == "confirmed"
-                    is_compressed = vol_regime == "compressed"
+        # Filter coins with active lifecycle signals
+        lifecycle_coins = []
+        for coin in st.session_state.coin_data:
+            lc_over = coin.get("lifecycle_oversold")
+            lc_overbought = coin.get("lifecycle_overbought")
+            vol = coin.get("volatility")
+            price_chg = coin.get("price_change_pct")
 
-                    if is_fresh and is_compressed:
-                        conviction = "⭐⭐⭐"  # Gold stars for highest conviction
-                        conviction_sort = 3
-                    elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
-                        conviction = "⭐⭐☆"  # Two gold, one hollow
-                        conviction_sort = 2
-                    else:
-                        conviction = "⭐☆☆"  # One gold, two hollow
-                        conviction_sort = 1
+            # Check if oversold signal is active
+            if lc_over and lc_over.get("state") not in ("none", None):
+                # Determine volatility emoji
+                vol_regime = vol.get("regime") if vol else "normal"
+                vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
 
-                    lifecycle_coins.append({
-                        "symbol": coin["symbol"],
-                        "signal_type": "🟢 Oversold",
-                        "stage": f"{lc_over.get('emoji', '')} {state.capitalize()}",
-                        "days": lc_over.get("days_in_zone", 0),
-                        "price_change": price_chg,
-                        "volatility": vol_emoji,
-                        "conviction": conviction,
-                        "conviction_sort": conviction_sort,
-                        "is_oversold": True,
-                    })
+                # Calculate conviction
+                state = lc_over.get("state", "")
+                is_fresh = state == "fresh"
+                is_confirmed = state == "confirmed"
+                is_compressed = vol_regime == "compressed"
 
-                # Check if overbought signal is active
-                if lc_overbought and lc_overbought.get("state") not in ("none", None):
-                    vol_regime = vol.get("regime") if vol else "normal"
-                    vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
+                if is_fresh and is_compressed:
+                    conviction = "⭐⭐⭐"  # Gold stars for highest conviction
+                    conviction_sort = 3
+                elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
+                    conviction = "⭐⭐☆"  # Two gold, one hollow
+                    conviction_sort = 2
+                else:
+                    conviction = "⭐☆☆"  # One gold, two hollow
+                    conviction_sort = 1
 
-                    state = lc_overbought.get("state", "")
-                    is_fresh = state == "fresh"
-                    is_confirmed = state == "confirmed"
-                    is_compressed = vol_regime == "compressed"
+                lifecycle_coins.append({
+                    "symbol": coin["symbol"],
+                    "signal_type": "🟢 Oversold",
+                    "stage": f"{lc_over.get('emoji', '')} {state.capitalize()}",
+                    "days": lc_over.get("days_in_zone", 0),
+                    "price_change": price_chg,
+                    "volatility": vol_emoji,
+                    "conviction": conviction,
+                    "conviction_sort": conviction_sort,
+                    "is_oversold": True,
+                })
 
-                    if is_fresh and is_compressed:
-                        conviction = "⭐⭐⭐"  # Gold stars for highest conviction
-                        conviction_sort = 3
-                    elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
-                        conviction = "⭐⭐☆"  # Two gold, one hollow
-                        conviction_sort = 2
-                    else:
-                        conviction = "⭐☆☆"  # One gold, two hollow
-                        conviction_sort = 1
+            # Check if overbought signal is active
+            if lc_overbought and lc_overbought.get("state") not in ("none", None):
+                vol_regime = vol.get("regime") if vol else "normal"
+                vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
 
-                    lifecycle_coins.append({
-                        "symbol": coin["symbol"],
-                        "signal_type": "🔴 Overbought",
-                        "stage": f"{lc_overbought.get('emoji', '')} {state.capitalize()}",
-                        "days": lc_overbought.get("days_in_zone", 0),
-                        "price_change": price_chg,
-                        "volatility": vol_emoji,
-                        "conviction": conviction,
-                        "conviction_sort": conviction_sort,
-                        "is_oversold": False,
-                    })
+                state = lc_overbought.get("state", "")
+                is_fresh = state == "fresh"
+                is_confirmed = state == "confirmed"
+                is_compressed = vol_regime == "compressed"
 
-            if lifecycle_coins:
-                # Sort by conviction (highest first), then by days (ascending for fresh)
-                lifecycle_coins.sort(key=lambda x: (-x["conviction_sort"], x["days"]))
+                if is_fresh and is_compressed:
+                    conviction = "⭐⭐⭐"  # Gold stars for highest conviction
+                    conviction_sort = 3
+                elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
+                    conviction = "⭐⭐☆"  # Two gold, one hollow
+                    conviction_sort = 2
+                else:
+                    conviction = "⭐☆☆"  # One gold, two hollow
+                    conviction_sort = 1
 
-                # Build display table
-                import pandas as pd
-                df_data = []
-                for lc in lifecycle_coins:
-                    price_chg_str = f"{lc['price_change']:+.1f}%" if lc["price_change"] is not None else "—"
-                    df_data.append({
-                        "Symbol": lc["symbol"],
-                        "Signal": lc["signal_type"],
-                        "Stage": lc["stage"],
-                        "Days": lc["days"],
-                        "Price Δ": price_chg_str,
-                        "Vol": lc["volatility"],
-                        "Conviction": lc["conviction"],
-                    })
+                lifecycle_coins.append({
+                    "symbol": coin["symbol"],
+                    "signal_type": "🔴 Overbought",
+                    "stage": f"{lc_overbought.get('emoji', '')} {state.capitalize()}",
+                    "days": lc_overbought.get("days_in_zone", 0),
+                    "price_change": price_chg,
+                    "volatility": vol_emoji,
+                    "conviction": conviction,
+                    "conviction_sort": conviction_sort,
+                    "is_oversold": False,
+                })
 
-                df = pd.DataFrame(df_data)
-                st.dataframe(
-                    df,
-                    hide_index=True,
-                    use_container_width=True,
-                )
-            else:
-                st.info("No extreme RSI signals currently active.")
+        if lifecycle_coins:
+            # Sort by conviction (highest first), then by days (ascending for fresh)
+            lifecycle_coins.sort(key=lambda x: (-x["conviction_sort"], x["days"]))
 
-            # Legend explaining badges
-            st.caption(
-                "**Signal Stages:** 🆕 Fresh (1-2 days) | ✓ Confirmed (3-5 days) | ⏳ Extended (6+ days) | ↗↘ Resolving (exiting zone)  \n"
-                "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
-                "**Conviction:** ⭐⭐⭐ Fresh + Compressed = Highest | ⭐⭐☆ Confirmed or Fresh + Normal | ⭐☆☆ Other"
+            # Build display table
+            import pandas as pd
+            df_data = []
+            for lc in lifecycle_coins:
+                price_chg_str = f"{lc['price_change']:+.1f}%" if lc["price_change"] is not None else "—"
+                df_data.append({
+                    "Symbol": lc["symbol"],
+                    "Signal": lc["signal_type"],
+                    "Stage": lc["stage"],
+                    "Days": lc["days"],
+                    "Price Δ": price_chg_str,
+                    "Vol": lc["volatility"],
+                    "Conviction": lc["conviction"],
+                })
+
+            df = pd.DataFrame(df_data)
+            st.dataframe(
+                df,
+                hide_index=True,
+                use_container_width=True,
             )
+        else:
+            st.info("No extreme RSI signals currently active.")
+
+        # Legend explaining badges
+        st.caption(
+            "**Signal Stages:** 🆕 Fresh (1-2 days) | ✓ Confirmed (3-5 days) | ⏳ Extended (6+ days) | ↗↘ Resolving (exiting zone)  \n"
+            "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
+            "**Conviction:** ⭐⭐⭐ Fresh + Compressed = Highest | ⭐⭐☆ Confirmed or Fresh + Normal | ⭐☆☆ Other"
+        )
+
+        # Close the lifecycle panel
+        st.markdown('</div>', unsafe_allow_html=True)
 
 else:
     # Empty state with context
