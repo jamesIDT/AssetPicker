@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 ## Current Position
 
-Phase: 16 of 20 (Layout Restructure)
+Phase: 17 of 20 (Chart Theming)
 Plan: 1/1 complete
 Status: Phase complete
-Last activity: 2026-01-24 — Completed 16-01-PLAN.md
+Last activity: 2026-01-24 — Completed 17-01-PLAN.md
 
-Progress: ████░░░░░░░░░░░░░░░░ 21%
+Progress: █████░░░░░░░░░░░░░░░ 26%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
+- Total plans completed: 22
 - Average duration: 3.1 min
-- Total execution time: 1.1 hours
+- Total execution time: 1.2 hours
 
 **By Phase:**
 
@@ -43,9 +43,10 @@ Progress: ████░░░░░░░░░░░░░░░░ 21%
 | 14. Opportunity Leaderboard | 1 | 5 min | 5 min |
 | 15. Design System | 1 | 3 min | 3 min |
 | 16. Layout Restructure | 1 | 8 min | 8 min |
+| 17. Chart Theming | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 13-01 (3 min), 14-01 (5 min), 15-01 (3 min), 16-01 (8 min)
+- Last 5 plans: 14-01 (5 min), 15-01 (3 min), 16-01 (8 min), 17-01 (4 min)
 - Trend: stable
 
 ## Accumulated Context
@@ -67,6 +68,8 @@ All v1.0 and v2.0 decisions marked as Good.
 | Sidebar default | Collapsed | Cleaner initial view, maximizes chart real estate |
 | Hero charts split | 65/35 (RSI/Accel) | RSI Scatter gets more prominence as primary chart |
 | Data panels | Visible (no expanders) | Leaderboard + Sector Momentum always visible |
+| Chart dark theme | paper_bgcolor=#4A4A4A, cream text | Consistent with Streamlit dark theme |
+| Marker outlines | Light (rgba white) | Pop on dark background instead of dark outlines |
 
 ### Deferred Issues
 
@@ -79,7 +82,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Phase 16 complete, ready for Phase 17
+Stopped at: Phase 17 complete, ready for Phase 18
 Resume file: None
 
 ## Milestones Completed
