@@ -24,7 +24,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 8: Funding Rate Integration** - Binance/Bybit API for funding rates + open interest
 - [x] **Phase 9: Visual Marker System** - Bull/bear divergence icons with scoring visualization
 - [x] **Phase 10: Main Chart Enhancements** - Regime banner, beta-adjusted colors, sector strength
-- [ ] **Phase 11: Signal Lifecycle Display** - Combined lifecycle badges + volatility context view
+- [x] **Phase 11: Signal Lifecycle Display** - Combined lifecycle badges + volatility context view
 - [ ] **Phase 12: Sector Momentum View** - Sector rotation flow visualization
 - [ ] **Phase 13: Acceleration Quadrant** - RSI acceleration + volatility regime new quadrant
 - [ ] **Phase 14: Opportunity Leaderboard** - Decay score ranked table with all factors
@@ -246,7 +246,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 8. Funding Rate Integration | v2.0 | 2/2 | Complete | 2026-01-24 |
 | 9. Visual Marker System | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 10. Main Chart Enhancements | v2.0 | 2/2 | Complete | 2026-01-24 |
-| 11. Signal Lifecycle Display | v2.0 | 0/TBD | Not started | - |
+| 11. Signal Lifecycle Display | v2.0 | 1/1 | Complete | 2026-01-24 |
 | 12. Sector Momentum View | v2.0 | 0/TBD | Not started | - |
 | 13. Acceleration Quadrant | v2.0 | 0/TBD | Not started | - |
 | 14. Opportunity Leaderboard | v2.0 | 0/TBD | Not started | - |
