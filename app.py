@@ -458,6 +458,13 @@ if st.session_state.coin_data is not None:
             help="Weekly RSI: Green=oversold, Red=overbought. Beta Residual: Green=outperforming BTC, Red=underperforming.",
         )
 
+        # Z-score labels toggle
+        show_zscore = st.checkbox(
+            "Show Z-Score Labels",
+            value=False,
+            help="Display statistical z-score next to coin symbols for extreme readings (|z| > 1.5)",
+        )
+
         # Extract beta residuals for beta mode
         beta_residuals = None
         if color_mode == "Beta Residual":
@@ -477,6 +484,11 @@ if st.session_state.coin_data is not None:
                 "sector_rank": c.get("sector_rank"),
             })
 
+        # Extract zscore data for labels and tooltips
+        zscore_data = []
+        for c in st.session_state.coin_data:
+            zscore_data.append(c.get("zscore_info"))
+
         # Build and display chart - responsive square
         fig = build_rsi_scatter(
             st.session_state.coin_data,
@@ -484,6 +496,8 @@ if st.session_state.coin_data is not None:
             beta_data=beta_residuals,
             color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
             sector_data=sector_data,
+            zscore_data=zscore_data,
+            show_zscore=show_zscore,
         )
         st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 

@@ -44,6 +44,8 @@ def build_rsi_scatter(
     beta_data: list[float] | None = None,
     color_mode: str = "weekly_rsi",
     sector_data: list[dict] | None = None,
+    zscore_data: list[dict | None] | None = None,
+    show_zscore: bool = False,
 ) -> go.Figure:
     """
     Build scatter plot showing daily RSI vs liquidity with configurable color encoding.
@@ -67,6 +69,10 @@ def build_rsi_scatter(
         sector_data: Optional list of sector dicts (same order as coin_data):
             - sector: Sector name (e.g., "L1", "DeFi")
             - sector_rank: "best" | "worst" | None
+        zscore_data: Optional list of zscore dicts (same order as coin_data):
+            - zscore: Z-score value
+            - extreme: "oversold" | "overbought" | "normal"
+        show_zscore: If True, show z-score labels for extreme readings (|z| > 1.5)
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -222,8 +228,27 @@ def build_rsi_scatter(
     elif len(sector_data) != len(coin_data):
         sector_data = [{"sector": "Other", "sector_rank": None} for _ in coin_data]
 
+    # Build zscore info (default if not provided)
+    if zscore_data is None:
+        zscore_data = [None for _ in coin_data]
+    elif len(zscore_data) != len(coin_data):
+        zscore_data = [None for _ in coin_data]
+
+    # Build text labels - include z-score for extreme readings if show_zscore is True
+    text_labels = []
+    for i, c in enumerate(coin_data):
+        symbol = c["symbol"]
+        z_info = zscore_data[i] if zscore_data else None
+        if show_zscore and z_info is not None:
+            zscore_val = z_info.get("zscore", 0)
+            if abs(zscore_val) > 1.5:
+                # Format as "BTC (-2.3σ)" or "ETH (+1.8σ)"
+                sign = "+" if zscore_val > 0 else ""
+                symbol = f"{symbol} ({sign}{zscore_val:.1f}σ)"
+        text_labels.append(symbol)
+
     # Prepare customdata for enhanced tooltips:
-    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score, beta, residual, sector, sector_rank]
+    # [name, price, volume, mcap, weekly_rsi, divergence_type, divergence_score, beta, residual, sector, sector_rank, zscore, zscore_extreme]
     customdata = []
     for i, (c, d, s) in enumerate(zip(coin_data, divergence_data, sector_data)):
         beta_info = c.get("beta_info")
@@ -238,6 +263,20 @@ def build_rsi_scatter(
         else:
             rank_badge = ""
 
+        # Format z-score info
+        z_info = zscore_data[i] if zscore_data else None
+        if z_info is not None:
+            zscore_val = z_info.get("zscore", 0)
+            extreme = z_info.get("extreme", "normal")
+            if extreme == "oversold":
+                zscore_text = f"{zscore_val:+.2f}σ (Oversold)"
+            elif extreme == "overbought":
+                zscore_text = f"{zscore_val:+.2f}σ (Overbought)"
+            else:
+                zscore_text = f"{zscore_val:+.2f}σ"
+        else:
+            zscore_text = "N/A"
+
         customdata.append([
             c["name"],
             format_currency(c["price"]),
@@ -250,6 +289,7 @@ def build_rsi_scatter(
             residual_val,
             s.get("sector", "Other"),
             rank_badge,
+            zscore_text,
         ])
 
     # Group coins by divergence type for efficient trace rendering
@@ -281,7 +321,7 @@ def build_rsi_scatter(
         return [values[i] for i in indices]
 
     # Common hovertemplate for all traces
-    # customdata indices: 9=sector, 10=sector_rank_badge (pre-formatted)
+    # customdata indices: 9=sector, 10=sector_rank_badge, 11=zscore_text
     if color_mode == "beta_residual":
         hovertemplate = (
             "<b>%{customdata[0]}</b> (%{text})<br>"
@@ -290,6 +330,7 @@ def build_rsi_scatter(
             "Market Cap: %{customdata[3]}<br>"
             "Daily RSI: %{x:.1f}<br>"
             "Weekly RSI: %{customdata[4]:.1f}<br>"
+            "Z-Score: %{customdata[11]}<br>"
             "Beta: %{customdata[7]:.2f} | Residual: %{customdata[8]:+.1f}<br>"
             "Sector: %{customdata[9]}%{customdata[10]}<br>"
             "Divergence: %{customdata[5]} (score %{customdata[6]})"
@@ -303,6 +344,7 @@ def build_rsi_scatter(
             "Market Cap: %{customdata[3]}<br>"
             "Daily RSI: %{x:.1f}<br>"
             "Weekly RSI: %{customdata[4]:.1f}<br>"
+            "Z-Score: %{customdata[11]}<br>"
             "Sector: %{customdata[9]}%{customdata[10]}<br>"
             "Divergence: %{customdata[5]} (score %{customdata[6]})"
             "<extra></extra>"
@@ -357,7 +399,7 @@ def build_rsi_scatter(
                 x=subset(neutral_indices, daily_rsi),
                 y=subset(neutral_indices, vol_mcap),
                 mode="markers+text",
-                text=subset(neutral_indices, symbols),
+                text=subset(neutral_indices, text_labels),
                 textposition="top center",
                 textfont={"size": 9},
                 customdata=subset(neutral_indices, customdata),
@@ -387,7 +429,7 @@ def build_rsi_scatter(
                 x=subset(bullish_indices, daily_rsi),
                 y=subset(bullish_indices, vol_mcap),
                 mode="markers+text",
-                text=subset(bullish_indices, symbols),
+                text=subset(bullish_indices, text_labels),
                 textposition="top center",
                 textfont={"size": 9},
                 customdata=subset(bullish_indices, customdata),
@@ -417,7 +459,7 @@ def build_rsi_scatter(
                 x=subset(bearish_indices, daily_rsi),
                 y=subset(bearish_indices, vol_mcap),
                 mode="markers+text",
-                text=subset(bearish_indices, symbols),
+                text=subset(bearish_indices, text_labels),
                 textposition="top center",
                 textfont={"size": 9},
                 customdata=subset(bearish_indices, customdata),
