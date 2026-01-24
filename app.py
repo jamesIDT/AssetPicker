@@ -1286,6 +1286,118 @@ if st.session_state.coin_data is not None:
             else:
                 st.info("No sector data available.")
 
+        # Signal Lifecycle Analysis section (collapsed expander at bottom)
+        st.markdown("---")
+        with st.expander("Signal Lifecycle Analysis", expanded=False):
+            # Filter coins with active lifecycle signals
+            lifecycle_coins = []
+            for coin in st.session_state.coin_data:
+                lc_over = coin.get("lifecycle_oversold")
+                lc_overbought = coin.get("lifecycle_overbought")
+                vol = coin.get("volatility")
+                price_chg = coin.get("price_change_pct")
+
+                # Check if oversold signal is active
+                if lc_over and lc_over.get("state") not in ("none", None):
+                    # Determine volatility emoji
+                    vol_regime = vol.get("regime") if vol else "normal"
+                    vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
+
+                    # Calculate conviction
+                    state = lc_over.get("state", "")
+                    is_fresh = state == "fresh"
+                    is_confirmed = state == "confirmed"
+                    is_compressed = vol_regime == "compressed"
+
+                    if is_fresh and is_compressed:
+                        conviction = "★★★"
+                        conviction_sort = 3
+                    elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
+                        conviction = "★★"
+                        conviction_sort = 2
+                    else:
+                        conviction = "★"
+                        conviction_sort = 1
+
+                    lifecycle_coins.append({
+                        "symbol": coin["symbol"],
+                        "signal_type": "🟢 Oversold",
+                        "stage": f"{lc_over.get('emoji', '')} {state.capitalize()}",
+                        "days": lc_over.get("days_in_zone", 0),
+                        "price_change": price_chg,
+                        "volatility": vol_emoji,
+                        "conviction": conviction,
+                        "conviction_sort": conviction_sort,
+                        "is_oversold": True,
+                    })
+
+                # Check if overbought signal is active
+                if lc_overbought and lc_overbought.get("state") not in ("none", None):
+                    vol_regime = vol.get("regime") if vol else "normal"
+                    vol_emoji = "⚡" if vol_regime == "compressed" else ("🌊" if vol_regime == "expanded" else "➖")
+
+                    state = lc_overbought.get("state", "")
+                    is_fresh = state == "fresh"
+                    is_confirmed = state == "confirmed"
+                    is_compressed = vol_regime == "compressed"
+
+                    if is_fresh and is_compressed:
+                        conviction = "★★★"
+                        conviction_sort = 3
+                    elif (is_confirmed and is_compressed) or (is_fresh and vol_regime == "normal"):
+                        conviction = "★★"
+                        conviction_sort = 2
+                    else:
+                        conviction = "★"
+                        conviction_sort = 1
+
+                    lifecycle_coins.append({
+                        "symbol": coin["symbol"],
+                        "signal_type": "🔴 Overbought",
+                        "stage": f"{lc_overbought.get('emoji', '')} {state.capitalize()}",
+                        "days": lc_overbought.get("days_in_zone", 0),
+                        "price_change": price_chg,
+                        "volatility": vol_emoji,
+                        "conviction": conviction,
+                        "conviction_sort": conviction_sort,
+                        "is_oversold": False,
+                    })
+
+            if lifecycle_coins:
+                # Sort by conviction (highest first), then by days (ascending for fresh)
+                lifecycle_coins.sort(key=lambda x: (-x["conviction_sort"], x["days"]))
+
+                # Build display table
+                import pandas as pd
+                df_data = []
+                for lc in lifecycle_coins:
+                    price_chg_str = f"{lc['price_change']:+.1f}%" if lc["price_change"] is not None else "—"
+                    df_data.append({
+                        "Symbol": lc["symbol"],
+                        "Signal": lc["signal_type"],
+                        "Stage": lc["stage"],
+                        "Days": lc["days"],
+                        "Price Δ": price_chg_str,
+                        "Vol": lc["volatility"],
+                        "Conviction": lc["conviction"],
+                    })
+
+                df = pd.DataFrame(df_data)
+                st.dataframe(
+                    df,
+                    hide_index=True,
+                    use_container_width=True,
+                )
+            else:
+                st.info("No extreme RSI signals currently active.")
+
+            # Legend explaining badges
+            st.caption(
+                "**Signal Stages:** 🆕 Fresh (1-2 days) | ✓ Confirmed (3-5 days) | ⏳ Extended (6+ days) | ↗↘ Resolving (exiting zone)  \n"
+                "**Volatility:** ⚡ Compressed (coiled spring) | ➖ Normal | 🌊 Expanded (volatile)  \n"
+                "**Conviction:** ★★★ Fresh + Compressed = Highest conviction | ★★ Confirmed or Fresh + Normal | ★ Other"
+            )
+
 else:
     # Empty state with context
     st.markdown("---")
