@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-24)
 
 ## Current Position
 
-Phase: 15 of 20 (Design System)
+Phase: 16 of 20 (Layout Restructure)
 Plan: 1/1 complete
 Status: Phase complete
-Last activity: 2026-01-24 — Phase 15 Design System complete
+Last activity: 2026-01-24 — Completed 16-01-PLAN.md
 
-Progress: ██░░░░░░░░░░░░░░░░░░ 17%
+Progress: ████░░░░░░░░░░░░░░░░ 21%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
-- Average duration: 2.9 min
-- Total execution time: 0.97 hours
+- Total plans completed: 21
+- Average duration: 3.1 min
+- Total execution time: 1.1 hours
 
 **By Phase:**
 
@@ -42,9 +42,10 @@ Progress: ██░░░░░░░░░░░░░░░░░░ 17%
 | 13. Acceleration Quadrant | 1 | 3 min | 3 min |
 | 14. Opportunity Leaderboard | 1 | 5 min | 5 min |
 | 15. Design System | 1 | 3 min | 3 min |
+| 16. Layout Restructure | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 12-01 (4 min), 13-01 (3 min), 14-01 (5 min), 15-01 (3 min)
+- Last 5 plans: 13-01 (3 min), 14-01 (5 min), 15-01 (3 min), 16-01 (8 min)
 - Trend: stable
 
 ## Accumulated Context
@@ -64,6 +65,8 @@ All v1.0 and v2.0 decisions marked as Good.
 | Typography | JetBrains Mono | Monospace font for data readability, matches hypothesis-validator aesthetic |
 | CSS architecture | :root tokens | Enables consistent theming across all components |
 | Sidebar default | Collapsed | Cleaner initial view, maximizes chart real estate |
+| Hero charts split | 65/35 (RSI/Accel) | RSI Scatter gets more prominence as primary chart |
+| Data panels | Visible (no expanders) | Leaderboard + Sector Momentum always visible |
 
 ### Deferred Issues
 
@@ -76,7 +79,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Phase 15 complete, ready for Phase 16
+Stopped at: Phase 16 complete, ready for Phase 17
 Resume file: None
 
 ## Milestones Completed
