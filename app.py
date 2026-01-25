@@ -1530,6 +1530,7 @@ if st.session_state.coin_data is not None:
                 show_zscore=show_zscore,
                 height=900,
                 beta_benchmark=beta_benchmark,
+                multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
             )
             st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 
@@ -1557,6 +1558,7 @@ if st.session_state.coin_data is not None:
             show_zscore=show_zscore,
             height=550,
             beta_benchmark=beta_benchmark,
+            multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
         )
 
         accel_coins = [

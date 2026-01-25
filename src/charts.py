@@ -170,6 +170,7 @@ def build_rsi_scatter(
     show_zscore: bool = False,
     height: int = 600,
     beta_benchmark: str = "BTC",
+    multi_tf_divergence: dict[str, dict] | None = None,
 ) -> go.Figure:
     """
     Build scatter plot showing daily RSI vs liquidity with configurable color encoding.
@@ -185,6 +186,7 @@ def build_rsi_scatter(
             - volume: 24h trading volume
             - market_cap: Market capitalization
             - beta_info: Optional dict with beta, expected_rsi, residual, interpretation
+            - id: CoinGecko coin ID (for multi_tf_divergence lookup)
         divergence_data: Optional list of divergence dicts (same order as coin_data):
             - type: "bullish" | "bearish" | "none"
             - score: 0 | 1 | 2 | 4
@@ -199,6 +201,9 @@ def build_rsi_scatter(
         show_zscore: If True, show z-score labels for extreme readings (|z| > 1.5)
         height: Chart height in pixels (default 600)
         beta_benchmark: Label for beta benchmark ("BTC", "ETH", "Total3") for colorbar title
+        multi_tf_divergence: Optional dict mapping coin_id to timeframe divergence data:
+            {coin_id: {timeframe: {"type": "bullish"|"bearish"|"none", ...}}}
+            Timeframes: 1h, 4h, 12h, 1d, 3d, 1w
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -476,6 +481,71 @@ def build_rsi_scatter(
             "Divergence: %{customdata[5]} (score %{customdata[6]})"
             "<extra></extra>"
         )
+
+    # Layer 0: Multi-timeframe divergence ring segments (added BEFORE markers)
+    # Ring segments show divergence status for 6 timeframes around each marker
+    # Timeframe order (clockwise from top): 1w, 3d, 1d, 12h, 4h, 1h
+    TIMEFRAME_ORDER = ["1w", "3d", "1d", "12h", "4h", "1h"]
+    DIVERGENCE_COLORS = {
+        "bullish": "#22c55e",  # Green
+        "bearish": "#ef4444",  # Red
+        "none": "#6b7280",     # Gray
+    }
+
+    if multi_tf_divergence:
+        # Ring dimensions in RSI units (x-axis)
+        # Use paper coordinates to avoid log scale issues on y-axis
+        ring_inner_radius = 1.5   # RSI units
+        ring_outer_radius = 2.5   # RSI units
+
+        for i, c in enumerate(coin_data):
+            coin_id = c.get("id")
+            if not coin_id:
+                continue
+
+            # Get marker position
+            cx = daily_rsi[i]
+            cy = vol_mcap[i]
+
+            # Skip if position invalid
+            if cx is None or cy is None or cy <= 0:
+                continue
+
+            # Get multi-TF divergence data for this coin
+            coin_mtf = multi_tf_divergence.get(coin_id, {})
+
+            # Draw 6 segments for each timeframe
+            for seg_idx, tf in enumerate(TIMEFRAME_ORDER):
+                # Get divergence type for this timeframe
+                tf_data = coin_mtf.get(tf, {})
+                div_type = tf_data.get("type", "none") if tf_data else "none"
+                fill_color = DIVERGENCE_COLORS.get(div_type, DIVERGENCE_COLORS["none"])
+
+                # Get angles for this segment
+                start_angle, end_angle = get_segment_angles(seg_idx)
+
+                # Create arc path
+                # Note: For log scale y-axis, we use xref/yref="x"/"y" with data coords
+                # The radius is in RSI units, applied to both x and y
+                # This will appear elliptical on log scale but provides consistent sizing
+                path = create_arc_segment_path(
+                    cx=cx,
+                    cy=cy,
+                    inner_radius=ring_inner_radius,
+                    outer_radius=ring_outer_radius,
+                    start_angle=start_angle,
+                    end_angle=end_angle,
+                )
+
+                fig.add_shape(
+                    type="path",
+                    path=path,
+                    fillcolor=fill_color,
+                    line={"width": 0.5, "color": "rgba(255,255,255,0.3)"},
+                    layer="below",
+                    xref="x",
+                    yref="y",
+                )
 
     # Layer 1: Outer rings for score >= 2 (thin ring)
     if score_2_indices:
