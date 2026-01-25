@@ -493,23 +493,41 @@ def build_rsi_scatter(
     }
 
     if multi_tf_divergence:
-        # Ring dimensions in RSI units (x-axis)
-        # Use paper coordinates to avoid log scale issues on y-axis
-        ring_inner_radius = 1.5   # RSI units
-        ring_outer_radius = 2.5   # RSI units
+        # Ring dimensions in paper coordinates (0-1 range)
+        # This ensures consistent ring size regardless of y position on log scale
+        # Paper coords: x is relative to plot width, y is relative to plot height
+        ring_inner_radius = 0.012  # ~12px on a 1000px wide chart
+        ring_outer_radius = 0.022  # ~22px on a 1000px wide chart
+
+        # Calculate x and y ranges for coordinate conversion
+        x_data_min = 0
+        x_data_max = 100  # RSI range is 0-100
 
         for i, c in enumerate(coin_data):
             coin_id = c.get("id")
             if not coin_id:
                 continue
 
-            # Get marker position
-            cx = daily_rsi[i]
-            cy = vol_mcap[i]
+            # Get marker position in data coords
+            cx_data = daily_rsi[i]
+            cy_data = vol_mcap[i]
 
             # Skip if position invalid
-            if cx is None or cy is None or cy <= 0:
+            if cx_data is None or cy_data is None or cy_data <= 0:
                 continue
+
+            # Convert data coords to paper coords (0-1 range)
+            # X: linear scale, RSI 0-100 maps to paper 0-1
+            cx_paper = (cx_data - x_data_min) / (x_data_max - x_data_min)
+
+            # Y: log scale - need to convert through log space
+            # log_min and log_max are the log10 of y-axis range
+            cy_log = math.log10(cy_data)
+            cy_paper = (cy_log - log_min) / (log_max - log_min)
+
+            # Clamp to valid range (in case of edge cases)
+            cx_paper = max(0, min(1, cx_paper))
+            cy_paper = max(0, min(1, cy_paper))
 
             # Get multi-TF divergence data for this coin
             coin_mtf = multi_tf_divergence.get(coin_id, {})
@@ -524,13 +542,10 @@ def build_rsi_scatter(
                 # Get angles for this segment
                 start_angle, end_angle = get_segment_angles(seg_idx)
 
-                # Create arc path
-                # Note: For log scale y-axis, we use xref/yref="x"/"y" with data coords
-                # The radius is in RSI units, applied to both x and y
-                # This will appear elliptical on log scale but provides consistent sizing
+                # Create arc path in paper coordinates
                 path = create_arc_segment_path(
-                    cx=cx,
-                    cy=cy,
+                    cx=cx_paper,
+                    cy=cy_paper,
                     inner_radius=ring_inner_radius,
                     outer_radius=ring_outer_radius,
                     start_angle=start_angle,
@@ -543,8 +558,8 @@ def build_rsi_scatter(
                     fillcolor=fill_color,
                     line={"width": 0.5, "color": "rgba(255,255,255,0.3)"},
                     layer="below",
-                    xref="x",
-                    yref="y",
+                    xref="paper",
+                    yref="paper",
                 )
 
     # Layer 1: Outer rings for score >= 2 (thin ring)
@@ -711,7 +726,10 @@ def build_rsi_scatter(
         )
 
     # Minimal corner legend for experienced users
+    # Include ring explanation if multi_tf_divergence is enabled
     icon_legend = "● No div  + Bull  ◆ Bear  ○ Score 2+  ○○ Score 4"
+    if multi_tf_divergence:
+        icon_legend += "  |  Ring: 6 TFs (1w→1h clockwise)"
     fig.add_annotation(
         x=0.99,
         y=0.99,
