@@ -36,7 +36,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
 - [x] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
 - [x] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
-- [ ] **Phase 21: Hourly Data Integration** - Add hourly OHLC fetch from CoinGecko with caching
+- [x] **Phase 21: Hourly Data Integration** - Add hourly OHLC fetch from CoinGecko with caching
 - [ ] **Phase 22: Multi-Timeframe Candles** - Aggregate 4h/12h/3d candles, RSI & divergence for all 6 TFs
 - [ ] **Phase 23: Segmented Ring Viz** - Multi-trace arc rendering around scatter markers
 - [ ] **Phase 24: Timeframe Highlight** - Sidebar selector with opacity highlight mode
@@ -197,7 +197,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 21-01: TBD (run /gsd:plan-phase 21 to break down)
+- [x] 21-01: Hourly OHLC pipeline with caching
 
 #### Phase 22: Multi-Timeframe Candles
 
@@ -279,7 +279,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 18. Component Refinement | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 19. Legends & Onboarding | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 20. Polish & Integration | v3.0 | 1/1 | Complete | 2026-01-24 |
-| 21. Hourly Data Integration | v4.0 | 0/? | Not started | - |
+| 21. Hourly Data Integration | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 22. Multi-Timeframe Candles | v4.0 | 0/? | Not started | - |
 | 23. Segmented Ring Viz | v4.0 | 0/? | Not started | - |
 | 24. Timeframe Highlight | v4.0 | 0/? | Not started | - |
