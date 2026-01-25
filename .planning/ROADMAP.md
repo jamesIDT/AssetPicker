@@ -199,15 +199,15 @@ Plans:
 Plans:
 - [x] 21-01: Hourly OHLC pipeline with caching
 
-#### Phase 22: Multi-Timeframe Candles
+#### Phase 22: Multi-Timeframe Candles (COMPLETE)
 
 **Goal**: Aggregate 4h, 12h, 3d candles from raw data; calculate RSI and divergence for all 6 timeframes
 **Depends on**: Phase 21
 **Research**: Unlikely (existing RSI/divergence patterns)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 22-01: TBD
+- [x] 22-01: Candle aggregation + multi-TF RSI/divergence
 
 #### Phase 23: Segmented Ring Viz
 
@@ -280,7 +280,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 19. Legends & Onboarding | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 20. Polish & Integration | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 21. Hourly Data Integration | v4.0 | 1/1 | Complete | 2026-01-25 |
-| 22. Multi-Timeframe Candles | v4.0 | 0/? | Not started | - |
+| 22. Multi-Timeframe Candles | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 23. Segmented Ring Viz | v4.0 | 0/? | Not started | - |
 | 24. Timeframe Highlight | v4.0 | 0/? | Not started | - |
 | 25. Divergence Matrix | v4.0 | 0/? | Not started | - |
