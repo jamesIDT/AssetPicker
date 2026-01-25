@@ -5,6 +5,127 @@ from typing import Any
 
 import plotly.graph_objects as go
 
+
+def get_segment_angles(segment_index: int) -> tuple[float, float]:
+    """
+    Get start and end angles for a ring segment (0-5).
+
+    Segments are arranged clockwise from top:
+    - Segment 0 (1w): Top center, -30 to 30 degrees from top
+    - Segment 1 (3d): 30 to 90 degrees
+    - Segment 2 (1d): 90 to 150 degrees
+    - Segment 3 (12h): 150 to 210 degrees
+    - Segment 4 (4h): 210 to 270 degrees
+    - Segment 5 (1h): 270 to 330 degrees
+
+    Returns angles in Plotly/SVG convention (0 = right, counterclockwise positive).
+    We convert from "clockwise from top" to standard math convention.
+
+    Args:
+        segment_index: 0-5 for the six timeframe segments
+
+    Returns:
+        (start_angle, end_angle) in radians for standard math coords
+
+    Example:
+        >>> get_segment_angles(0)  # 1w segment at top
+        (1.0471975511965976, 2.0943951023931953)  # 60 to 120 degrees
+    """
+    # Clockwise from top angles (degrees)
+    segment_starts_from_top = [-30, 30, 90, 150, 210, 270]
+    segment_ends_from_top = [30, 90, 150, 210, 270, 330]
+
+    # Convert from "clockwise from top" to standard math convention
+    # Standard: 0 = right (3 o'clock), counterclockwise positive
+    # From top: 0 = top (12 o'clock), clockwise positive
+    # Conversion: standard_angle = 90 - clockwise_from_top
+    start_from_top = segment_starts_from_top[segment_index]
+    end_from_top = segment_ends_from_top[segment_index]
+
+    # Convert to standard convention (note: we swap start/end because we're reversing direction)
+    start_angle_deg = 90 - end_from_top
+    end_angle_deg = 90 - start_from_top
+
+    # Convert to radians
+    start_angle = math.radians(start_angle_deg)
+    end_angle = math.radians(end_angle_deg)
+
+    return (start_angle, end_angle)
+
+
+def create_arc_segment_path(
+    cx: float,
+    cy: float,
+    inner_radius: float,
+    outer_radius: float,
+    start_angle: float,
+    end_angle: float,
+) -> str:
+    """
+    Create SVG path string for an arc segment (donut slice).
+
+    The path traces:
+    1. Start at inner arc start point
+    2. Line to outer arc start point
+    3. Arc along outer edge
+    4. Line to inner arc end point
+    5. Arc back along inner edge (reverse direction)
+    6. Close path
+
+    Args:
+        cx: Center x coordinate (data coords)
+        cy: Center y coordinate (data coords)
+        inner_radius: Inner radius of the ring
+        outer_radius: Outer radius of the ring
+        start_angle: Start angle in radians (standard math: 0=right, CCW positive)
+        end_angle: End angle in radians
+
+    Returns:
+        SVG path string suitable for fig.add_shape(type="path", path=...)
+
+    Example:
+        >>> path = create_arc_segment_path(50, 0.1, 0.8, 1.2, 1.047, 2.094)
+        >>> path.startswith('M')
+        True
+    """
+    # Calculate the four corner points
+    # Inner arc: start and end
+    inner_start_x = cx + inner_radius * math.cos(start_angle)
+    inner_start_y = cy + inner_radius * math.sin(start_angle)
+    inner_end_x = cx + inner_radius * math.cos(end_angle)
+    inner_end_y = cy + inner_radius * math.sin(end_angle)
+
+    # Outer arc: start and end
+    outer_start_x = cx + outer_radius * math.cos(start_angle)
+    outer_start_y = cy + outer_radius * math.sin(start_angle)
+    outer_end_x = cx + outer_radius * math.cos(end_angle)
+    outer_end_y = cy + outer_radius * math.sin(end_angle)
+
+    # Determine arc flags
+    # For 60-degree segments, we never need the large arc flag
+    angle_span = end_angle - start_angle
+    large_arc = 1 if abs(angle_span) > math.pi else 0
+
+    # Sweep flag: 1 for counterclockwise (our convention)
+    sweep_outer = 1  # CCW for outer arc (start to end)
+    sweep_inner = 0  # CW for inner arc (end back to start)
+
+    # Build SVG path
+    # M = move to, L = line to, A = arc
+    # Arc syntax: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+    path = (
+        f"M {inner_start_x:.6f} {inner_start_y:.6f} "
+        f"L {outer_start_x:.6f} {outer_start_y:.6f} "
+        f"A {outer_radius:.6f} {outer_radius:.6f} 0 {large_arc} {sweep_outer} "
+        f"{outer_end_x:.6f} {outer_end_y:.6f} "
+        f"L {inner_end_x:.6f} {inner_end_y:.6f} "
+        f"A {inner_radius:.6f} {inner_radius:.6f} 0 {large_arc} {sweep_inner} "
+        f"{inner_start_x:.6f} {inner_start_y:.6f} "
+        f"Z"
+    )
+
+    return path
+
 # Quadrant labels and descriptions for the 2x2 grid
 # Based on RSI (x-axis) and Liquidity (y-axis) combinations
 QUADRANT_LABELS = {
