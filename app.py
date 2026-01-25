@@ -7,7 +7,7 @@ from datetime import datetime
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.charts import build_acceleration_quadrant, build_rsi_scatter
+from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_scatter
 from src.coingecko import CoinGeckoClient
 from src.data_store import (
     load_data,
@@ -1623,6 +1623,61 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
+
+        # Section Header: Divergence Analysis
+        st.markdown(
+            '<div class="section-header">DIVERGENCE ANALYSIS — MULTI-TIMEFRAME</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown('<div class="bordered-panel">', unsafe_allow_html=True)
+
+        # Build divergence matrix
+        multi_tf_div = st.session_state.get("multi_tf_divergence", {})
+        if multi_tf_div and st.session_state.coin_data:
+            import pandas as pd
+
+            matrix_data, column_order = build_divergence_matrix(
+                st.session_state.coin_data,
+                multi_tf_div,
+            )
+
+            # Add checkbox to toggle filter
+            show_all_matrix = st.checkbox("Show all coins", value=False, key="matrix_show_all")
+
+            # Filter to only coins with at least 1 divergence by default
+            if not show_all_matrix:
+                matrix_data = [row for row in matrix_data if row["Total"] > 0]
+
+            if matrix_data:
+                df = pd.DataFrame(matrix_data)
+                # Reorder columns
+                df = df[column_order]
+
+                st.dataframe(
+                    df,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "Symbol": st.column_config.TextColumn("Symbol", width="medium"),
+                        "1h": st.column_config.TextColumn("1h", width="small"),
+                        "4h": st.column_config.TextColumn("4h", width="small"),
+                        "12h": st.column_config.TextColumn("12h", width="small"),
+                        "1d": st.column_config.TextColumn("1d", width="small"),
+                        "3d": st.column_config.TextColumn("3d", width="small"),
+                        "1w": st.column_config.TextColumn("1w", width="small"),
+                        "Total": st.column_config.NumberColumn("Total", width="small"),
+                    },
+                )
+
+                # Caption explaining the matrix
+                st.caption("🟢 Bullish (price lower low, RSI higher low) | 🔴 Bearish (price higher high, RSI lower high) | ⚪ None")
+            else:
+                st.info("No divergences detected across any timeframe.")
+        else:
+            st.info("Multi-timeframe divergence data requires a data refresh.")
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # Section Header: Analysis
         st.markdown(
