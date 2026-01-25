@@ -8,6 +8,10 @@ from pathlib import Path
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_FILE = DATA_DIR / "screener_data.json"
 
+# Hourly data caching (separate from main screener data)
+HOURLY_DATA_FILE = DATA_DIR / "hourly_data.json"
+HOURLY_CACHE_TTL_MINUTES = 60  # 1 hour TTL - hourly data doesn't need frequent refresh
+
 
 def ensure_data_dir() -> None:
     """Create data directory if it doesn't exist."""
@@ -67,3 +71,65 @@ def load_data() -> dict | None:
 def data_exists() -> bool:
     """Check if persistent data exists."""
     return DATA_FILE.exists()
+
+
+def save_hourly_data(hourly_history: dict[str, dict], last_updated: datetime) -> None:
+    """
+    Save raw hourly history data with timestamp.
+
+    Args:
+        hourly_history: Dict mapping coin_id -> market_chart response
+        last_updated: Timestamp for TTL checking
+    """
+    ensure_data_dir()
+
+    data = {
+        "hourly_history": hourly_history,
+        "last_updated": last_updated.isoformat(),
+    }
+
+    with open(HOURLY_DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_hourly_data() -> dict | None:
+    """
+    Load hourly history data from persistent storage.
+
+    Returns:
+        Dict with 'hourly_history' and 'last_updated' keys,
+        or None if file doesn't exist or is corrupted.
+    """
+    if not HOURLY_DATA_FILE.exists():
+        return None
+
+    try:
+        with open(HOURLY_DATA_FILE) as f:
+            data = json.load(f)
+
+        # Convert ISO string back to datetime
+        if data.get("last_updated"):
+            data["last_updated"] = datetime.fromisoformat(data["last_updated"])
+
+        return data
+    except (json.JSONDecodeError, KeyError, ValueError):
+        return None
+
+
+def is_hourly_cache_valid() -> bool:
+    """
+    Check if hourly cache exists and is within TTL.
+
+    Returns:
+        True if cache is valid and fresh, False if expired or missing.
+    """
+    data = load_hourly_data()
+    if data is None:
+        return False
+
+    last_updated = data.get("last_updated")
+    if not isinstance(last_updated, datetime):
+        return False
+
+    age_minutes = (datetime.now() - last_updated).total_seconds() / 60
+    return age_minutes < HOURLY_CACHE_TTL_MINUTES
