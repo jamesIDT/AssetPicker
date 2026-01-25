@@ -1033,3 +1033,86 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) 
     )
 
     return fig
+
+
+def build_divergence_matrix(
+    coin_data: list[dict],
+    multi_tf_divergence: dict[str, dict],
+) -> tuple[list[dict], list[str]]:
+    """
+    Build divergence analysis matrix showing multi-timeframe divergence status per coin.
+
+    Creates a sortable grid view of divergences across all 6 timeframes, enabling
+    quick identification of coins with multiple divergence alignments.
+
+    Args:
+        coin_data: List of coin dicts with keys:
+            - id: CoinGecko coin ID
+            - symbol: Coin symbol (e.g., "BTC")
+        multi_tf_divergence: Dict mapping coin_id to timeframe divergence data:
+            {coin_id: {timeframe: {"type": "bullish"|"bearish"|"none", "description": "..."}}}
+            Timeframes: 1h, 4h, 12h, 1d, 3d, 1w
+
+    Returns:
+        Tuple of (matrix_data, column_order) where:
+            - matrix_data: List of dicts ready for DataFrame display
+            - column_order: ["Symbol", "1h", "4h", "12h", "1d", "3d", "1w", "Total"]
+
+    Example output row:
+        {
+            "Symbol": "BTC",
+            "1h": "🟢",
+            "4h": "⚪",
+            "12h": "🔴",
+            ...
+            "Total": 2
+        }
+    """
+    # Timeframe order (left to right, ascending significance)
+    TIMEFRAME_ORDER = ["1h", "4h", "12h", "1d", "3d", "1w"]
+
+    # Emoji indicators matching the color scheme from DIVERGENCE_COLORS
+    EMOJI_MAP = {
+        "bullish": "🟢",  # Green - bullish divergence
+        "bearish": "🔴",  # Red - bearish divergence
+        "none": "⚪",     # Gray - no divergence
+    }
+
+    matrix_data = []
+
+    for coin in coin_data:
+        coin_id = coin.get("id")
+        symbol = coin.get("symbol", "???")
+
+        if not coin_id:
+            continue
+
+        # Get multi-TF divergence data for this coin
+        coin_mtf = multi_tf_divergence.get(coin_id, {})
+
+        # Build row data
+        row = {"Symbol": symbol}
+        total_divergences = 0
+
+        for tf in TIMEFRAME_ORDER:
+            tf_data = coin_mtf.get(tf, {})
+            div_type = tf_data.get("type", "none") if tf_data else "none"
+
+            # Get emoji indicator
+            emoji = EMOJI_MAP.get(div_type, EMOJI_MAP["none"])
+            row[tf] = emoji
+
+            # Count non-none divergences
+            if div_type != "none":
+                total_divergences += 1
+
+        row["Total"] = total_divergences
+        matrix_data.append(row)
+
+    # Sort by total divergence count descending, then alphabetically by symbol
+    matrix_data.sort(key=lambda x: (-x["Total"], x["Symbol"]))
+
+    # Column order for display
+    column_order = ["Symbol"] + TIMEFRAME_ORDER + ["Total"]
+
+    return matrix_data, column_order
