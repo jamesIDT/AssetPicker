@@ -194,3 +194,69 @@ def get_weekly_rsi(market_chart: dict, period: int = 14) -> float | None:
         return None
 
     return calculate_rsi(closes, period)
+
+
+def calculate_multi_tf_rsi(
+    hourly_data: dict | None, daily_data: dict | None, period: int = 14
+) -> dict[str, float]:
+    """
+    Calculate RSI for all 6 timeframes.
+
+    Args:
+        hourly_data: CoinGecko hourly data {"prices": [[ts_ms, price], ...]} or None
+        daily_data: CoinGecko daily data {"prices": [[ts_ms, price], ...]} or None
+        period: RSI period (default: 14)
+
+    Returns:
+        Dict with RSI values for available timeframes:
+        {"1h": 45.2, "4h": 48.1, "12h": 52.3, "1d": 55.0, "3d": 58.2, "1w": 62.1}
+        Omits timeframes with insufficient data.
+    """
+    result: dict[str, float] = {}
+
+    # Hourly-based timeframes (1h, 4h, 12h)
+    if hourly_data:
+        hourly_prices = hourly_data.get("prices", [])
+
+        if hourly_prices:
+            # 1h RSI - direct from hourly closes
+            hourly_closes = [price for _, price in hourly_prices]
+            rsi_1h = calculate_rsi(hourly_closes, period)
+            if rsi_1h is not None:
+                result["1h"] = rsi_1h
+
+            # 4h RSI - aggregated from hourly
+            closes_4h = aggregate_to_4h_closes(hourly_prices)
+            rsi_4h = calculate_rsi(closes_4h, period)
+            if rsi_4h is not None:
+                result["4h"] = rsi_4h
+
+            # 12h RSI - aggregated from hourly
+            closes_12h = aggregate_to_12h_closes(hourly_prices)
+            rsi_12h = calculate_rsi(closes_12h, period)
+            if rsi_12h is not None:
+                result["12h"] = rsi_12h
+
+    # Daily-based timeframes (1d, 3d, 1w)
+    if daily_data:
+        daily_prices = daily_data.get("prices", [])
+
+        if daily_prices:
+            # 1d RSI - direct from daily closes
+            daily_closes = [price for _, price in daily_prices]
+            rsi_1d = calculate_rsi(daily_closes, period)
+            if rsi_1d is not None:
+                result["1d"] = rsi_1d
+
+            # 3d RSI - aggregated from daily
+            closes_3d = aggregate_to_3d_closes(daily_prices)
+            rsi_3d = calculate_rsi(closes_3d, period)
+            if rsi_3d is not None:
+                result["3d"] = rsi_3d
+
+            # 1w RSI - use existing weekly aggregation pattern
+            rsi_1w = get_weekly_rsi(daily_data, period)
+            if rsi_1w is not None:
+                result["1w"] = rsi_1w
+
+    return result
