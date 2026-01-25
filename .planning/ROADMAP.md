@@ -37,8 +37,8 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
 - [x] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
 - [x] **Phase 21: Hourly Data Integration** - Add hourly OHLC fetch from CoinGecko with caching
-- [ ] **Phase 22: Multi-Timeframe Candles** - Aggregate 4h/12h/3d candles, RSI & divergence for all 6 TFs
-- [ ] **Phase 23: Segmented Ring Viz** - Multi-trace arc rendering around scatter markers
+- [x] **Phase 22: Multi-Timeframe Candles** - Aggregate 4h/12h/3d candles, RSI & divergence for all 6 TFs
+- [x] **Phase 23: Segmented Ring Viz** - Multi-trace arc rendering around scatter markers
 - [ ] **Phase 24: Timeframe Highlight** - Sidebar selector with opacity highlight mode
 - [ ] **Phase 25: Divergence Matrix** - Grid component sorted by divergence count with tooltips
 - [ ] **Phase 26: Polish & Performance** - Optimize rendering, test with full dataset
@@ -218,7 +218,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 23-01: TBD
+- [x] 23-01: Arc segment rendering + ring integration
 
 #### Phase 24: Timeframe Highlight
 
@@ -281,7 +281,7 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 20. Polish & Integration | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 21. Hourly Data Integration | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 22. Multi-Timeframe Candles | v4.0 | 1/1 | Complete | 2026-01-25 |
-| 23. Segmented Ring Viz | v4.0 | 0/? | Not started | - |
+| 23. Segmented Ring Viz | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 24. Timeframe Highlight | v4.0 | 0/? | Not started | - |
 | 25. Divergence Matrix | v4.0 | 0/? | Not started | - |
 | 26. Polish & Performance | v4.0 | 0/? | Not started | - |

@@ -6,6 +6,24 @@ from typing import Any
 import plotly.graph_objects as go
 
 
+def hex_to_rgba(hex_color: str, opacity: float) -> str:
+    """
+    Convert hex color to rgba string.
+
+    Args:
+        hex_color: Hex color string (e.g., "#22c55e" or "22c55e")
+        opacity: Opacity value between 0.0 and 1.0
+
+    Returns:
+        RGBA color string (e.g., "rgba(34,197,94,0.3)")
+    """
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{opacity})"
+
+
 def get_segment_angles(segment_index: int) -> tuple[float, float]:
     """
     Get start and end angles for a ring segment (0-5).
@@ -171,6 +189,7 @@ def build_rsi_scatter(
     height: int = 600,
     beta_benchmark: str = "BTC",
     multi_tf_divergence: dict[str, dict] | None = None,
+    highlight_tf: str | None = None,
 ) -> go.Figure:
     """
     Build scatter plot showing daily RSI vs liquidity with configurable color encoding.
@@ -204,6 +223,9 @@ def build_rsi_scatter(
         multi_tf_divergence: Optional dict mapping coin_id to timeframe divergence data:
             {coin_id: {timeframe: {"type": "bullish"|"bearish"|"none", ...}}}
             Timeframes: 1h, 4h, 12h, 1d, 3d, 1w
+        highlight_tf: Optional timeframe to highlight in ring segments.
+            When set, the specified timeframe segment renders at full opacity (1.0)
+            while other segments fade to 0.3 opacity. None shows all at full opacity.
 
     Returns:
         Plotly Figure object with the scatter plot
@@ -537,7 +559,16 @@ def build_rsi_scatter(
                 # Get divergence type for this timeframe
                 tf_data = coin_mtf.get(tf, {})
                 div_type = tf_data.get("type", "none") if tf_data else "none"
-                fill_color = DIVERGENCE_COLORS.get(div_type, DIVERGENCE_COLORS["none"])
+                base_color = DIVERGENCE_COLORS.get(div_type, DIVERGENCE_COLORS["none"])
+
+                # Determine segment opacity based on highlight mode
+                if highlight_tf is None or highlight_tf == tf:
+                    segment_opacity = 1.0
+                else:
+                    segment_opacity = 0.3
+
+                # Apply opacity to fill color using rgba format
+                fill_color = hex_to_rgba(base_color, segment_opacity)
 
                 # Get angles for this segment
                 start_angle, end_angle = get_segment_angles(seg_idx)
