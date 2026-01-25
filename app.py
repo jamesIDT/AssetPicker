@@ -9,7 +9,13 @@ from dotenv import load_dotenv
 
 from src.charts import build_acceleration_quadrant, build_rsi_scatter
 from src.coingecko import CoinGeckoClient
-from src.data_store import load_data, save_data
+from src.data_store import (
+    load_data,
+    save_data,
+    load_hourly_data,
+    save_hourly_data,
+    is_hourly_cache_valid,
+)
 from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
@@ -637,6 +643,9 @@ if "coin_data" not in st.session_state:
         st.session_state.failed_coins = cached_data["failed_coins"]
         st.session_state.btc_regime = cached_data["btc_regime"]
         st.session_state.btc_weekly_rsi = cached_data["btc_weekly_rsi"]
+        # Load hourly data separately (different cache)
+        hourly_cached = load_hourly_data()
+        st.session_state.hourly_history = hourly_cached.get("hourly_history") if hourly_cached else None
     else:
         st.session_state.coin_data = None
         st.session_state.divergence_data = None
@@ -644,6 +653,7 @@ if "coin_data" not in st.session_state:
         st.session_state.failed_coins = 0
         st.session_state.btc_regime = None
         st.session_state.btc_weekly_rsi = None
+        st.session_state.hourly_history = None
 if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All Sectors"
 
@@ -745,7 +755,7 @@ def aggregate_to_weekly(prices: list[tuple[int, float]]) -> list[float]:
     return [weekly_closes[week] for week in sorted_weeks]
 
 
-async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None]:
+async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None, dict | None]:
     """
     Fetch market data and calculate RSI for all coins.
 
@@ -753,12 +763,24 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         coin_ids: List of CoinGecko coin IDs
 
     Returns:
-        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi)
+        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi, hourly_history)
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
         market_data = await client.get_coins_market_data(coin_ids)
         history = await client.get_coins_history(coin_ids, days=120)
+
+        # Fetch hourly data (with caching)
+        hourly_history = None
+        if is_hourly_cache_valid():
+            hourly_cached = load_hourly_data()
+            if hourly_cached:
+                hourly_history = hourly_cached.get("hourly_history")
+        else:
+            # Fetch fresh hourly data
+            hourly_history = await client.get_coins_hourly_history(coin_ids, days=90)
+            # Save to cache
+            save_hourly_data(hourly_history, datetime.now())
 
     # Build lookup for market data
     market_lookup = {c["id"]: c for c in market_data}
@@ -1166,7 +1188,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
         result[result_idx]["sector_rank"] = sector_rank
 
-    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi
+    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history
 
 
 # Load watchlist with error handling
@@ -1199,13 +1221,14 @@ with header_col2:
     if st.button("Refresh Data", type="primary", use_container_width=True):
         with st.spinner("Fetching data from CoinGecko..."):
             try:
-                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi = asyncio.run(fetch_all_data(coin_ids))
+                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history = asyncio.run(fetch_all_data(coin_ids))
                 st.session_state.coin_data = data
                 st.session_state.divergence_data = divergence_data
                 st.session_state.last_updated = datetime.now()
                 st.session_state.failed_coins = failed_count
                 st.session_state.btc_regime = btc_regime
                 st.session_state.btc_weekly_rsi = btc_weekly_rsi
+                st.session_state.hourly_history = hourly_history
                 # Save to persistent storage
                 save_data(
                     coin_data=data,
