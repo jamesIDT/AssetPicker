@@ -13,6 +13,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - ✅ **v1.0 MVP** - Phases 1-6 (shipped 2026-01-23)
 - ✅ **v2.0 Advanced Screening** - Phases 7-14 (shipped 2026-01-24)
 - ✅ **v3.0 UX Dashboard Redesign** - Phases 15-20 (shipped 2026-01-24)
+- 🚧 **v4.0 Multi-Timeframe Divergence** - Phases 21-26 (in progress)
 
 ## Phases
 
@@ -35,6 +36,12 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 18: Component Refinement** - Restyle leaderboard, sector momentum, lifecycle panels
 - [x] **Phase 19: Legends & Onboarding** - Collapsible "How to Read" panel, icon legends
 - [x] **Phase 20: Polish & Integration** - Final visual polish, cleanup redundant elements
+- [ ] **Phase 21: Hourly Data Integration** - Add hourly OHLC fetch from CoinGecko with caching
+- [ ] **Phase 22: Multi-Timeframe Candles** - Aggregate 4h/12h/3d candles, RSI & divergence for all 6 TFs
+- [ ] **Phase 23: Segmented Ring Viz** - Multi-trace arc rendering around scatter markers
+- [ ] **Phase 24: Timeframe Highlight** - Sidebar selector with opacity highlight mode
+- [ ] **Phase 25: Divergence Matrix** - Grid component sorted by divergence count with tooltips
+- [ ] **Phase 26: Polish & Performance** - Optimize rendering, test with full dataset
 
 ## Phase Details
 
@@ -175,6 +182,76 @@ Plans:
 
 ---
 
+### 🚧 v4.0 Multi-Timeframe Divergence (In Progress)
+
+**Milestone Goal:** Extend divergence detection to 6 timeframes (1h, 4h, 12h, 1d, 3d, 1w) with visual segmented rings on scatter plot and a dedicated divergence analysis matrix.
+
+**Spec:** .planning/2025-01-25-multi-timeframe-divergence-display.md
+
+#### Phase 21: Hourly Data Integration
+
+**Goal**: Add hourly OHLC data fetch from CoinGecko with appropriate caching
+**Depends on**: v3.0 complete
+**Research**: Likely (CoinGecko hourly endpoint specifics)
+**Research topics**: CoinGecko hourly OHLC endpoint, rate limits, data format
+**Plans**: TBD
+
+Plans:
+- [ ] 21-01: TBD (run /gsd:plan-phase 21 to break down)
+
+#### Phase 22: Multi-Timeframe Candles
+
+**Goal**: Aggregate 4h, 12h, 3d candles from raw data; calculate RSI and divergence for all 6 timeframes
+**Depends on**: Phase 21
+**Research**: Unlikely (existing RSI/divergence patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 22-01: TBD
+
+#### Phase 23: Segmented Ring Viz
+
+**Goal**: Implement segmented ring visualization around scatter markers (6 segments, one per timeframe)
+**Depends on**: Phase 22
+**Research**: Likely (Plotly arc/shape rendering)
+**Research topics**: Plotly scatterpolar, custom shapes, multi-trace performance
+**Plans**: TBD
+
+Plans:
+- [ ] 23-01: TBD
+
+#### Phase 24: Timeframe Highlight
+
+**Goal**: Add timeframe selector to sidebar with highlight mode (selected TF glows, others fade)
+**Depends on**: Phase 23
+**Research**: Unlikely (existing sidebar patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 24-01: TBD
+
+#### Phase 25: Divergence Matrix
+
+**Goal**: Build divergence analysis grid component sorted by divergence count with cell tooltips
+**Depends on**: Phase 22
+**Research**: Unlikely (Streamlit dataframe styling)
+**Plans**: TBD
+
+Plans:
+- [ ] 25-01: TBD
+
+#### Phase 26: Polish & Performance
+
+**Goal**: Optimize ring rendering performance, test with full 48-coin dataset, handle edge cases
+**Depends on**: Phase 23, 24, 25
+**Research**: Unlikely (internal refinement)
+**Plans**: TBD
+
+Plans:
+- [ ] 26-01: TBD
+
+---
+
 ## Progress
 
 **Execution Order:**
@@ -202,3 +279,9 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 18. Component Refinement | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 19. Legends & Onboarding | v3.0 | 1/1 | Complete | 2026-01-24 |
 | 20. Polish & Integration | v3.0 | 1/1 | Complete | 2026-01-24 |
+| 21. Hourly Data Integration | v4.0 | 0/? | Not started | - |
+| 22. Multi-Timeframe Candles | v4.0 | 0/? | Not started | - |
+| 23. Segmented Ring Viz | v4.0 | 0/? | Not started | - |
+| 24. Timeframe Highlight | v4.0 | 0/? | Not started | - |
+| 25. Divergence Matrix | v4.0 | 0/? | Not started | - |
+| 26. Polish & Performance | v4.0 | 0/? | Not started | - |
