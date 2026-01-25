@@ -19,6 +19,7 @@ from src.data_store import (
 from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
+    calculate_multi_tf_divergence,
     calculate_opportunity_score,
     calculate_rsi_acceleration,
     calculate_zscore,
@@ -28,7 +29,7 @@ from src.indicators import (
     detect_volatility_regime,
 )
 from src.sectors import calculate_sector_momentum, calculate_sector_rsi, get_sector
-from src.rsi import calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
+from src.rsi import calculate_multi_tf_rsi, calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
 load_dotenv()
@@ -646,6 +647,9 @@ if "coin_data" not in st.session_state:
         # Load hourly data separately (different cache)
         hourly_cached = load_hourly_data()
         st.session_state.hourly_history = hourly_cached.get("hourly_history") if hourly_cached else None
+        # Multi-timeframe data (calculated on demand)
+        st.session_state.multi_tf_rsi = {}
+        st.session_state.multi_tf_divergence = {}
     else:
         st.session_state.coin_data = None
         st.session_state.divergence_data = None
@@ -654,6 +658,8 @@ if "coin_data" not in st.session_state:
         st.session_state.btc_regime = None
         st.session_state.btc_weekly_rsi = None
         st.session_state.hourly_history = None
+        st.session_state.multi_tf_rsi = {}
+        st.session_state.multi_tf_divergence = {}
 if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All Sectors"
 
@@ -755,7 +761,7 @@ def aggregate_to_weekly(prices: list[tuple[int, float]]) -> list[float]:
     return [weekly_closes[week] for week in sorted_weeks]
 
 
-async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None, dict | None]:
+async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None, dict | None, dict, dict]:
     """
     Fetch market data and calculate RSI for all coins.
 
@@ -763,7 +769,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         coin_ids: List of CoinGecko coin IDs
 
     Returns:
-        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi, hourly_history)
+        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_divergence)
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
@@ -1188,7 +1194,25 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
         result[result_idx]["sector_rank"] = sector_rank
 
-    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history
+    # Calculate multi-timeframe RSI and divergence for all coins
+    multi_tf_rsi_all: dict = {}
+    multi_tf_divergence_all: dict = {}
+
+    for coin_id in coin_ids:
+        hourly = hourly_history.get(coin_id, {}) if hourly_history else {}
+        daily = history.get(coin_id, {})
+
+        # Calculate multi-TF RSI
+        multi_rsi = calculate_multi_tf_rsi(hourly, daily)
+        if multi_rsi:
+            multi_tf_rsi_all[coin_id] = multi_rsi
+
+        # Calculate multi-TF divergence
+        multi_div = calculate_multi_tf_divergence(hourly, daily, multi_rsi)
+        if multi_div:
+            multi_tf_divergence_all[coin_id] = multi_div
+
+    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi_all, multi_tf_divergence_all
 
 
 # Load watchlist with error handling
@@ -1221,7 +1245,7 @@ with header_col2:
     if st.button("Refresh Data", type="primary", use_container_width=True):
         with st.spinner("Fetching data from CoinGecko..."):
             try:
-                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history = asyncio.run(fetch_all_data(coin_ids))
+                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_divergence = asyncio.run(fetch_all_data(coin_ids))
                 st.session_state.coin_data = data
                 st.session_state.divergence_data = divergence_data
                 st.session_state.last_updated = datetime.now()
@@ -1229,6 +1253,8 @@ with header_col2:
                 st.session_state.btc_regime = btc_regime
                 st.session_state.btc_weekly_rsi = btc_weekly_rsi
                 st.session_state.hourly_history = hourly_history
+                st.session_state.multi_tf_rsi = multi_tf_rsi
+                st.session_state.multi_tf_divergence = multi_tf_divergence
                 # Save to persistent storage
                 save_data(
                     coin_data=data,

@@ -802,3 +802,156 @@ def calculate_opportunity_score(factors: dict) -> dict:
         "final_score": round(final_score, 4),
         "factors": factor_contributions,
     }
+
+
+def calculate_multi_tf_divergence(
+    hourly_data: dict | None,
+    daily_data: dict | None,
+    multi_tf_rsi: dict[str, float],
+    lookback: int = 14,
+) -> dict[str, dict]:
+    """
+    Calculate divergence signals for all 6 timeframes.
+
+    Args:
+        hourly_data: CoinGecko hourly data {"prices": [[ts_ms, price], ...]} or None
+        daily_data: CoinGecko daily data {"prices": [[ts_ms, price], ...]} or None
+        multi_tf_rsi: Dict of RSI values per timeframe from calculate_multi_tf_rsi
+        lookback: Number of periods to check for divergence (default: 14)
+
+    Returns:
+        Dict keyed by timeframe with divergence info:
+        {
+            "1h": {"type": "bullish", "strength": 1, "description": "..."},
+            "4h": {"type": "none", "strength": 0, "description": "..."},
+            ...
+        }
+    """
+    from src.rsi import (
+        aggregate_to_4h_closes,
+        aggregate_to_12h_closes,
+        aggregate_to_3d_closes,
+        calculate_rsi,
+    )
+    from datetime import datetime
+
+    result: dict[str, dict] = {}
+
+    def get_rsi_history(closes: list[float], period: int = 14) -> list[float]:
+        """Calculate rolling RSI history for divergence detection."""
+        if len(closes) < period + 1:
+            return []
+
+        rsi_history = []
+        deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+        gains = [d if d > 0 else 0 for d in deltas]
+        losses = [-d if d < 0 else 0 for d in deltas]
+
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+
+        if avg_loss == 0:
+            rsi_history.append(100.0)
+        else:
+            rs = avg_gain / avg_loss
+            rsi_history.append(100 - (100 / (1 + rs)))
+
+        for i in range(period, len(gains)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
+            if avg_loss == 0:
+                rsi_history.append(100.0)
+            else:
+                rs = avg_gain / avg_loss
+                rsi_history.append(100 - (100 / (1 + rs)))
+
+        return rsi_history
+
+    # Hourly-based timeframes
+    if hourly_data:
+        hourly_prices = hourly_data.get("prices", [])
+
+        if hourly_prices:
+            # 1h divergence
+            if "1h" in multi_tf_rsi:
+                closes_1h = [price for _, price in hourly_prices]
+                rsi_history_1h = get_rsi_history(closes_1h)
+                if len(closes_1h) >= lookback and len(rsi_history_1h) >= lookback:
+                    div = detect_divergence(
+                        closes_1h[-lookback:], rsi_history_1h[-lookback:], lookback
+                    )
+                    if div:
+                        result["1h"] = div
+
+            # 4h divergence
+            if "4h" in multi_tf_rsi:
+                closes_4h = aggregate_to_4h_closes(hourly_prices)
+                rsi_history_4h = get_rsi_history(closes_4h)
+                if len(closes_4h) >= lookback and len(rsi_history_4h) >= lookback:
+                    div = detect_divergence(
+                        closes_4h[-lookback:], rsi_history_4h[-lookback:], lookback
+                    )
+                    if div:
+                        result["4h"] = div
+
+            # 12h divergence
+            if "12h" in multi_tf_rsi:
+                closes_12h = aggregate_to_12h_closes(hourly_prices)
+                rsi_history_12h = get_rsi_history(closes_12h)
+                if len(closes_12h) >= lookback and len(rsi_history_12h) >= lookback:
+                    div = detect_divergence(
+                        closes_12h[-lookback:], rsi_history_12h[-lookback:], lookback
+                    )
+                    if div:
+                        result["12h"] = div
+
+    # Daily-based timeframes
+    if daily_data:
+        daily_prices = daily_data.get("prices", [])
+
+        if daily_prices:
+            # 1d divergence
+            if "1d" in multi_tf_rsi:
+                closes_1d = [price for _, price in daily_prices]
+                rsi_history_1d = get_rsi_history(closes_1d)
+                if len(closes_1d) >= lookback and len(rsi_history_1d) >= lookback:
+                    div = detect_divergence(
+                        closes_1d[-lookback:], rsi_history_1d[-lookback:], lookback
+                    )
+                    if div:
+                        result["1d"] = div
+
+            # 3d divergence
+            if "3d" in multi_tf_rsi:
+                closes_3d = aggregate_to_3d_closes(daily_prices)
+                rsi_history_3d = get_rsi_history(closes_3d)
+                if len(closes_3d) >= lookback and len(rsi_history_3d) >= lookback:
+                    div = detect_divergence(
+                        closes_3d[-lookback:], rsi_history_3d[-lookback:], lookback
+                    )
+                    if div:
+                        result["3d"] = div
+
+            # 1w divergence
+            if "1w" in multi_tf_rsi:
+                # Aggregate daily to weekly closes using ISO week grouping
+                weekly_closes_dict: dict[tuple[int, int], float] = {}
+                for timestamp_ms, price in daily_prices:
+                    dt = datetime.fromtimestamp(timestamp_ms / 1000)
+                    iso = dt.isocalendar()
+                    week_key = (iso.year, iso.week)
+                    weekly_closes_dict[week_key] = price
+
+                sorted_weeks = sorted(weekly_closes_dict.keys())
+                closes_1w = [weekly_closes_dict[week] for week in sorted_weeks]
+                rsi_history_1w = get_rsi_history(closes_1w)
+
+                if len(closes_1w) >= lookback and len(rsi_history_1w) >= lookback:
+                    div = detect_divergence(
+                        closes_1w[-lookback:], rsi_history_1w[-lookback:], lookback
+                    )
+                    if div:
+                        result["1w"] = div
+
+    return result
