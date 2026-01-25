@@ -239,6 +239,10 @@ def build_rsi_scatter(
             # Add padding and round to nice log values
             log_min = math.floor(math.log10(min_vol))
             log_max = math.ceil(math.log10(max_vol))
+            # Ensure we have a valid range (prevent division by zero)
+            if log_min == log_max:
+                log_min = log_min - 1
+                log_max = log_max + 1
             y_range = [10 ** log_min, 10 ** log_max]
             # Calculate midpoint in log space for quadrant division
             log_mid = (log_min + log_max) / 2
