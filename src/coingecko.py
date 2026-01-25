@@ -140,6 +140,65 @@ class CoinGeckoClient:
 
         return history
 
+    async def get_coin_market_chart_hourly(
+        self, coin_id: str, vs_currency: str = "usd", days: int = 90
+    ) -> dict:
+        """
+        Fetch historical price data at hourly granularity.
+
+        CoinGecko auto-returns hourly data for 2-90 day ranges when interval param is omitted.
+
+        Args:
+            coin_id: CoinGecko coin ID (e.g., "bitcoin")
+            vs_currency: Target currency (default: "usd")
+            days: Number of days of historical data (default: 90, max for hourly)
+
+        Returns:
+            Dict with 'prices', 'market_caps', 'total_volumes' arrays at hourly resolution.
+            Each array contains [timestamp_ms, value] pairs.
+        """
+        params = {
+            "vs_currency": vs_currency,
+            "days": days,
+            # No interval param - CoinGecko returns hourly for 2-90 day ranges
+        }
+
+        result = await self._request(f"/coins/{coin_id}/market_chart", params)
+        return result if isinstance(result, dict) else {}
+
+    async def get_coins_hourly_history(
+        self, coin_ids: list[str], vs_currency: str = "usd", days: int = 90
+    ) -> dict[str, dict]:
+        """
+        Fetch hourly historical data for multiple coins.
+
+        Args:
+            coin_ids: List of CoinGecko coin IDs
+            vs_currency: Target currency (default: "usd")
+            days: Number of days of historical data (default: 90)
+
+        Returns:
+            Dict mapping coin_id -> hourly market_chart response.
+            Failed fetches are excluded from the result.
+        """
+        if not coin_ids:
+            return {}
+
+        tasks = [
+            self.get_coin_market_chart_hourly(coin_id, vs_currency, days)
+            for coin_id in coin_ids
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        history: dict[str, dict] = {}
+        for coin_id, result in zip(coin_ids, results):
+            if isinstance(result, dict):
+                history[coin_id] = result
+            # Exceptions are silently excluded - failed coins won't appear in result
+
+        return history
+
     async def close(self) -> None:
         """Close the HTTP client."""
         await self._client.aclose()
