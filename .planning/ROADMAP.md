@@ -40,7 +40,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - [x] **Phase 22: Multi-Timeframe Candles** - Aggregate 4h/12h/3d candles, RSI & divergence for all 6 TFs
 - [x] **Phase 23: Segmented Ring Viz** - Multi-trace arc rendering around scatter markers
 - [x] **Phase 24: Timeframe Highlight** - Sidebar selector with opacity highlight mode
-- [ ] **Phase 25: Divergence Matrix** - Grid component sorted by divergence count with tooltips
+- [x] **Phase 25: Divergence Matrix** - Grid component sorted by divergence count with tooltips
 - [ ] **Phase 26: Polish & Performance** - Optimize rendering, test with full dataset
 
 ## Phase Details
@@ -238,7 +238,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 25-01: TBD
+- [x] 25-01: Divergence matrix builder + dashboard section
 
 #### Phase 26: Polish & Performance
 
@@ -248,7 +248,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 26-01: TBD
+- [ ] 26-01: Performance validation + edge case handling + loading states
 
 ---
 
@@ -283,5 +283,5 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 22. Multi-Timeframe Candles | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 23. Segmented Ring Viz | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 24. Timeframe Highlight | v4.0 | 1/1 | Complete | 2026-01-25 |
-| 25. Divergence Matrix | v4.0 | 0/? | Not started | - |
+| 25. Divergence Matrix | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 26. Polish & Performance | v4.0 | 0/? | Not started | - |
