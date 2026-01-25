@@ -662,6 +662,8 @@ if "coin_data" not in st.session_state:
         st.session_state.multi_tf_divergence = {}
 if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All Sectors"
+if "highlight_tf" not in st.session_state:
+    st.session_state.highlight_tf = None
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -1548,6 +1550,7 @@ if st.session_state.coin_data is not None:
                 height=900,
                 beta_benchmark=beta_benchmark,
                 multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
+                highlight_tf=st.session_state.highlight_tf,
             )
             st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
 
@@ -1576,6 +1579,7 @@ if st.session_state.coin_data is not None:
             height=550,
             beta_benchmark=beta_benchmark,
             multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
+            highlight_tf=st.session_state.highlight_tf,
         )
 
         accel_coins = [
