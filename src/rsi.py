@@ -73,6 +73,90 @@ def get_daily_rsi(market_chart: dict, period: int = 14) -> float | None:
     return calculate_rsi(closes, period)
 
 
+def aggregate_to_4h_closes(hourly_prices: list) -> list[float]:
+    """
+    Aggregate hourly price data to 4-hour closes.
+
+    Args:
+        hourly_prices: List of [timestamp_ms, price] pairs from CoinGecko
+
+    Returns:
+        List of closing prices for each 4-hour bucket (oldest to newest)
+    """
+    if not hourly_prices:
+        return []
+
+    # 4 hours in milliseconds
+    bucket_size_ms = 4 * 60 * 60 * 1000
+
+    # Group by 4-hour buckets using integer division
+    buckets: dict[int, float] = {}
+    for timestamp_ms, price in hourly_prices:
+        bucket_key = timestamp_ms // bucket_size_ms
+        # Keep overwriting - last price in bucket is the close
+        buckets[bucket_key] = price
+
+    # Sort by bucket and extract closes
+    sorted_buckets = sorted(buckets.keys())
+    return [buckets[bucket] for bucket in sorted_buckets]
+
+
+def aggregate_to_12h_closes(hourly_prices: list) -> list[float]:
+    """
+    Aggregate hourly price data to 12-hour closes.
+
+    Args:
+        hourly_prices: List of [timestamp_ms, price] pairs from CoinGecko
+
+    Returns:
+        List of closing prices for each 12-hour bucket (oldest to newest)
+    """
+    if not hourly_prices:
+        return []
+
+    # 12 hours in milliseconds
+    bucket_size_ms = 12 * 60 * 60 * 1000
+
+    # Group by 12-hour buckets using integer division
+    buckets: dict[int, float] = {}
+    for timestamp_ms, price in hourly_prices:
+        bucket_key = timestamp_ms // bucket_size_ms
+        # Keep overwriting - last price in bucket is the close
+        buckets[bucket_key] = price
+
+    # Sort by bucket and extract closes
+    sorted_buckets = sorted(buckets.keys())
+    return [buckets[bucket] for bucket in sorted_buckets]
+
+
+def aggregate_to_3d_closes(daily_prices: list) -> list[float]:
+    """
+    Aggregate daily price data to 3-day closes.
+
+    Args:
+        daily_prices: List of [timestamp_ms, price] pairs from CoinGecko
+
+    Returns:
+        List of closing prices for each 3-day bucket (oldest to newest)
+    """
+    if not daily_prices:
+        return []
+
+    # 3 days in milliseconds
+    bucket_size_ms = 3 * 24 * 60 * 60 * 1000
+
+    # Group by 3-day buckets using integer division
+    buckets: dict[int, float] = {}
+    for timestamp_ms, price in daily_prices:
+        bucket_key = timestamp_ms // bucket_size_ms
+        # Keep overwriting - last price in bucket is the close
+        buckets[bucket_key] = price
+
+    # Sort by bucket and extract closes
+    sorted_buckets = sorted(buckets.keys())
+    return [buckets[bucket] for bucket in sorted_buckets]
+
+
 def get_weekly_rsi(market_chart: dict, period: int = 14) -> float | None:
     """
     Calculate weekly RSI from CoinGecko daily market_chart data.
