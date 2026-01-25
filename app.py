@@ -1233,7 +1233,7 @@ coin_ids = [c["id"] for c in watchlist]
 header_col1, header_col2 = st.columns([4, 1])
 with header_col1:
     st.title("Crypto RSI Screener")
-    # Sub-header: Data source + timestamp
+    # Sub-header: Data source + timestamp + hourly data status
     subheader_parts = ["Data from CoinGecko Pro API"]
     if st.session_state.last_updated:
         relative = format_relative_time(st.session_state.last_updated)
@@ -1241,6 +1241,23 @@ with header_col1:
         subheader_parts.append(f"Updated {relative} ({full_time})")
         if st.session_state.failed_coins > 0:
             subheader_parts.append(f"{st.session_state.failed_coins} coin(s) unavailable")
+
+    # Hourly data status indicator
+    hourly_cached = load_hourly_data()
+    if hourly_cached and hourly_cached.get("hourly_history"):
+        hourly_updated = hourly_cached.get("last_updated")
+        if hourly_updated:
+            hourly_age_mins = (datetime.now() - hourly_updated).total_seconds() / 60
+            if hourly_age_mins < 60:
+                subheader_parts.append("Hourly: Fresh")
+            else:
+                hours_ago = int(hourly_age_mins / 60)
+                subheader_parts.append(f"Hourly: Stale ({hours_ago}h ago)")
+        else:
+            subheader_parts.append("Hourly: Available")
+    else:
+        subheader_parts.append("Hourly: Missing")
+
     st.caption(" · ".join(subheader_parts))
 with header_col2:
     st.write("")  # Spacer for vertical alignment
@@ -1438,13 +1455,21 @@ if st.session_state.coin_data is not None:
             )
 
             # Timeframe highlight selector
+            # Check if multi-TF data is available
+            mtf_data_available = bool(st.session_state.get("multi_tf_divergence"))
+
             tf_highlight = st.radio(
                 "Highlight Timeframe",
                 ["All", "1w", "3d", "1d", "12h", "4h", "1h"],
                 horizontal=False,
                 label_visibility="visible",
                 key="tf_highlight_radio",
+                disabled=not mtf_data_available,
             )
+
+            # Show note if no MTF data
+            if not mtf_data_available:
+                st.caption("Refresh data to enable timeframe highlighting")
 
             # Convert "All" to None for the chart parameter
             highlight_tf = None if tf_highlight == "All" else tf_highlight
@@ -1674,6 +1699,12 @@ if st.session_state.coin_data is not None:
                 st.caption("🟢 Bullish (price lower low, RSI higher low) | 🔴 Bearish (price higher high, RSI lower high) | ⚪ None")
             else:
                 st.info("No divergences detected across any timeframe.")
+        elif st.session_state.coin_data and not multi_tf_div:
+            # Data exists but multi_tf_divergence is empty (calculating or missing hourly)
+            if st.session_state.hourly_history:
+                st.info("Calculating divergences... Please wait or refresh data.")
+            else:
+                st.info("Multi-timeframe divergence requires hourly data. Click 'Refresh Data' to fetch.")
         else:
             st.info("Multi-timeframe divergence data requires a data refresh.")
 
