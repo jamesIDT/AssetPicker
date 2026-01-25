@@ -525,6 +525,12 @@ def build_rsi_scatter(
         x_data_min = 0
         x_data_max = 100  # RSI range is 0-100
 
+        # Pre-calculate segment angles (same for all coins)
+        segment_angles = [get_segment_angles(seg_idx) for seg_idx in range(6)]
+
+        # Collect all ring segment shapes in a list (batch add for performance)
+        ring_shapes = []
+
         for i, c in enumerate(coin_data):
             coin_id = c.get("id")
             if not coin_id:
@@ -570,8 +576,8 @@ def build_rsi_scatter(
                 # Apply opacity to fill color using rgba format
                 fill_color = hex_to_rgba(base_color, segment_opacity)
 
-                # Get angles for this segment
-                start_angle, end_angle = get_segment_angles(seg_idx)
+                # Get pre-calculated angles for this segment
+                start_angle, end_angle = segment_angles[seg_idx]
 
                 # Create arc path in paper coordinates
                 path = create_arc_segment_path(
@@ -583,15 +589,21 @@ def build_rsi_scatter(
                     end_angle=end_angle,
                 )
 
-                fig.add_shape(
-                    type="path",
-                    path=path,
-                    fillcolor=fill_color,
-                    line={"width": 0.5, "color": "rgba(255,255,255,0.3)"},
-                    layer="below",
-                    xref="paper",
-                    yref="paper",
-                )
+                ring_shapes.append({
+                    "type": "path",
+                    "path": path,
+                    "fillcolor": fill_color,
+                    "line": {"width": 0.5, "color": "rgba(255,255,255,0.3)"},
+                    "layer": "below",
+                    "xref": "paper",
+                    "yref": "paper",
+                })
+
+        # Batch add all ring shapes at once (much faster than individual add_shape calls)
+        if ring_shapes:
+            # Get existing shapes and append ring shapes
+            existing_shapes = list(fig.layout.shapes) if fig.layout.shapes else []
+            fig.update_layout(shapes=existing_shapes + ring_shapes)
 
     # Layer 1: Outer rings for score >= 2 (thin ring)
     if score_2_indices:
