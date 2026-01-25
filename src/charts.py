@@ -74,13 +74,18 @@ def get_segment_angles(segment_index: int) -> tuple[float, float]:
 def create_arc_segment_path(
     cx: float,
     cy: float,
-    inner_radius: float,
-    outer_radius: float,
+    inner_radius_x: float,
+    outer_radius_x: float,
+    inner_radius_y: float,
+    outer_radius_y: float,
     start_angle: float,
     end_angle: float,
 ) -> str:
     """
     Create SVG path string for an arc segment (donut slice).
+
+    Supports elliptical arcs with different x and y radii, which is needed
+    for log-scale y-axis where we want visually consistent ring sizes.
 
     The path traces:
     1. Start at inner arc start point
@@ -93,31 +98,28 @@ def create_arc_segment_path(
     Args:
         cx: Center x coordinate (data coords)
         cy: Center y coordinate (data coords)
-        inner_radius: Inner radius of the ring
-        outer_radius: Outer radius of the ring
+        inner_radius_x: Inner radius in x direction
+        outer_radius_x: Outer radius in x direction
+        inner_radius_y: Inner radius in y direction
+        outer_radius_y: Outer radius in y direction
         start_angle: Start angle in radians (standard math: 0=right, CCW positive)
         end_angle: End angle in radians
 
     Returns:
         SVG path string suitable for fig.add_shape(type="path", path=...)
-
-    Example:
-        >>> path = create_arc_segment_path(50, 0.1, 0.8, 1.2, 1.047, 2.094)
-        >>> path.startswith('M')
-        True
     """
-    # Calculate the four corner points
+    # Calculate the four corner points using elliptical coordinates
     # Inner arc: start and end
-    inner_start_x = cx + inner_radius * math.cos(start_angle)
-    inner_start_y = cy + inner_radius * math.sin(start_angle)
-    inner_end_x = cx + inner_radius * math.cos(end_angle)
-    inner_end_y = cy + inner_radius * math.sin(end_angle)
+    inner_start_x = cx + inner_radius_x * math.cos(start_angle)
+    inner_start_y = cy + inner_radius_y * math.sin(start_angle)
+    inner_end_x = cx + inner_radius_x * math.cos(end_angle)
+    inner_end_y = cy + inner_radius_y * math.sin(end_angle)
 
     # Outer arc: start and end
-    outer_start_x = cx + outer_radius * math.cos(start_angle)
-    outer_start_y = cy + outer_radius * math.sin(start_angle)
-    outer_end_x = cx + outer_radius * math.cos(end_angle)
-    outer_end_y = cy + outer_radius * math.sin(end_angle)
+    outer_start_x = cx + outer_radius_x * math.cos(start_angle)
+    outer_start_y = cy + outer_radius_y * math.sin(start_angle)
+    outer_end_x = cx + outer_radius_x * math.cos(end_angle)
+    outer_end_y = cy + outer_radius_y * math.sin(end_angle)
 
     # Determine arc flags
     # For 60-degree segments, we never need the large arc flag
@@ -134,10 +136,10 @@ def create_arc_segment_path(
     path = (
         f"M {inner_start_x:.6f} {inner_start_y:.6f} "
         f"L {outer_start_x:.6f} {outer_start_y:.6f} "
-        f"A {outer_radius:.6f} {outer_radius:.6f} 0 {large_arc} {sweep_outer} "
+        f"A {outer_radius_x:.6f} {outer_radius_y:.6f} 0 {large_arc} {sweep_outer} "
         f"{outer_end_x:.6f} {outer_end_y:.6f} "
         f"L {inner_end_x:.6f} {inner_end_y:.6f} "
-        f"A {inner_radius:.6f} {inner_radius:.6f} 0 {large_arc} {sweep_inner} "
+        f"A {inner_radius_x:.6f} {inner_radius_y:.6f} 0 {large_arc} {sweep_inner} "
         f"{inner_start_x:.6f} {inner_start_y:.6f} "
         f"Z"
     )
@@ -519,15 +521,18 @@ def build_rsi_scatter(
     }
 
     if multi_tf_divergence:
-        # Ring dimensions in paper coordinates (0-1 range)
-        # This ensures consistent ring size regardless of y position on log scale
-        # Paper coords: x is relative to plot width, y is relative to plot height
-        ring_inner_radius = 0.012  # ~12px on a 1000px wide chart
-        ring_outer_radius = 0.022  # ~22px on a 1000px wide chart
+        # Ring dimensions in DATA coordinates
+        # X-axis: RSI 0-100 (linear), use RSI units for x-radius
+        # Y-axis: Log scale, use multiplicative factor for y-radius
+        # This ensures rings move with markers when zooming
+        ring_inner_radius_x = 2.5   # RSI units (inner edge)
+        ring_outer_radius_x = 4.5   # RSI units (outer edge)
 
-        # Calculate x and y ranges for coordinate conversion
-        x_data_min = 0
-        x_data_max = 100  # RSI range is 0-100
+        # For log-scale y-axis, use multiplicative factors
+        # inner_y = cy / k_inner, outer_y = cy * k_outer
+        # This keeps ring visually consistent across different y positions
+        ring_inner_factor = 1.15  # inner edge = cy / 1.15
+        ring_outer_factor = 1.30  # outer edge = cy * 1.30
 
         # Pre-calculate segment angles (same for all coins)
         segment_angles = [get_segment_angles(seg_idx) for seg_idx in range(6)]
@@ -548,18 +553,10 @@ def build_rsi_scatter(
             if cx_data is None or cy_data is None or cy_data <= 0:
                 continue
 
-            # Convert data coords to paper coords (0-1 range)
-            # X: linear scale, RSI 0-100 maps to paper 0-1
-            cx_paper = (cx_data - x_data_min) / (x_data_max - x_data_min)
-
-            # Y: log scale - need to convert through log space
-            # log_min and log_max are the log10 of y-axis range
-            cy_log = math.log10(cy_data)
-            cy_paper = (cy_log - log_min) / (log_max - log_min)
-
-            # Clamp to valid range (in case of edge cases)
-            cx_paper = max(0, min(1, cx_paper))
-            cy_paper = max(0, min(1, cy_paper))
+            # Calculate y-radii based on log scale
+            # For log scale: distance from cy to cy*k is visually consistent
+            inner_radius_y = cy_data - (cy_data / ring_inner_factor)
+            outer_radius_y = (cy_data * ring_outer_factor) - cy_data
 
             # Get multi-TF divergence data for this coin
             coin_mtf = multi_tf_divergence.get(coin_id, {})
@@ -583,12 +580,14 @@ def build_rsi_scatter(
                 # Get pre-calculated angles for this segment
                 start_angle, end_angle = segment_angles[seg_idx]
 
-                # Create arc path in paper coordinates
+                # Create arc path in DATA coordinates (moves with zoom)
                 path = create_arc_segment_path(
-                    cx=cx_paper,
-                    cy=cy_paper,
-                    inner_radius=ring_inner_radius,
-                    outer_radius=ring_outer_radius,
+                    cx=cx_data,
+                    cy=cy_data,
+                    inner_radius_x=ring_inner_radius_x,
+                    outer_radius_x=ring_outer_radius_x,
+                    inner_radius_y=inner_radius_y,
+                    outer_radius_y=outer_radius_y,
                     start_angle=start_angle,
                     end_angle=end_angle,
                 )
@@ -599,8 +598,8 @@ def build_rsi_scatter(
                     "fillcolor": fill_color,
                     "line": {"width": 0.5, "color": "rgba(255,255,255,0.3)"},
                     "layer": "below",
-                    "xref": "paper",
-                    "yref": "paper",
+                    "xref": "x",
+                    "yref": "y",
                 })
 
         # Batch add all ring shapes at once (much faster than individual add_shape calls)
