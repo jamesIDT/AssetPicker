@@ -1435,6 +1435,23 @@ if st.session_state.coin_data is not None:
                 value=False,
             )
 
+            # Timeframe highlight selector
+            tf_highlight = st.radio(
+                "Highlight Timeframe",
+                ["All", "1w", "3d", "1d", "12h", "4h", "1h"],
+                horizontal=False,
+                label_visibility="visible",
+                key="tf_highlight_radio",
+            )
+
+            # Convert "All" to None for the chart parameter
+            highlight_tf = None if tf_highlight == "All" else tf_highlight
+
+            # Store in session state for consistency
+            if "highlight_tf" not in st.session_state:
+                st.session_state.highlight_tf = None
+            st.session_state.highlight_tf = highlight_tf
+
         # Filter coin data if sector selected
         if st.session_state.selected_sector != "All Sectors":
             filtered_coin_data = [
