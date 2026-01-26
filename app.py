@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_scatter, build_rsi_sparkline_svg
+from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_price_quadrant, build_rsi_scatter, build_rsi_sparkline_svg
 from src.coingecko import CoinGeckoClient
 from src.data_store import (
     load_data,
@@ -27,6 +27,7 @@ from src.indicators import (
     calculate_divergence_score,
     calculate_multi_tf_divergence,
     calculate_opportunity_score,
+    calculate_price_acceleration,
     calculate_rsi_acceleration,
     calculate_zscore,
     classify_signal_lifecycle,
@@ -1143,6 +1144,11 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         if len(daily_rsi_history) >= 3:
             acceleration = calculate_rsi_acceleration(daily_rsi_history)
 
+        # Calculate price acceleration
+        price_acceleration = None
+        if len(daily_closes) >= 3:
+            price_acceleration = calculate_price_acceleration(daily_closes[-10:])
+
         # Calculate price change since signal started
         price_change_pct = None
         current_price = market.get("current_price", 0)
@@ -1176,8 +1182,10 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             "lifecycle_overbought": lifecycle_overbought,
             "volatility": volatility,
             "acceleration": acceleration,
+            "price_acceleration": price_acceleration,
             "price_change_pct": price_change_pct,
             "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
+            "price_history": daily_closes[-10:] if len(daily_closes) >= 10 else daily_closes,
         }
 
         # Calculate divergence data (reuse prices, daily_closes, daily_rsi_history from above)
@@ -1902,8 +1910,15 @@ if st.session_state.coin_data is not None:
         @st.dialog("Acceleration Quadrant", width="large")
         def show_accel_quadrant_modal():
             """Show Acceleration Quadrant chart in fullscreen modal."""
+            # Apply sector filter if active
+            modal_coin_data = st.session_state.coin_data
+            if st.session_state.get("selected_sector", "All Sectors") != "All Sectors":
+                modal_coin_data = [
+                    c for c in st.session_state.coin_data
+                    if c.get("sector") == st.session_state.selected_sector
+                ]
             accel_coins = [
-                c for c in st.session_state.coin_data
+                c for c in modal_coin_data
                 if c.get("volatility") is not None
             ]
             if accel_coins:
@@ -1935,7 +1950,7 @@ if st.session_state.coin_data is not None:
         )
 
         accel_coins = [
-            c for c in st.session_state.coin_data
+            c for c in filtered_coin_data
             if c.get("volatility") is not None
         ]
         accel_fig = build_acceleration_quadrant(
@@ -1980,6 +1995,43 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
+
+        # Section Header: Predictive Signals
+        st.markdown(
+            '<div class="section-header">PREDICTIVE SIGNALS — RSI vs PRICE MOMENTUM</div>',
+            unsafe_allow_html=True,
+        )
+
+        pred_col1, pred_col2 = st.columns(2)
+
+        # Build price_history_map from coin data
+        price_history_map = {}
+        for coin in filtered_coin_data:
+            coin_id = coin.get("id")
+            if coin_id and coin.get("price_history"):
+                price_history_map[coin_id] = coin["price_history"]
+
+        with pred_col1:
+            # Build RSI-Price quadrant
+            rsi_price_fig = build_rsi_price_quadrant(
+                filtered_coin_data,
+                height=450,
+                timeframe=st.session_state.get("show_timeframe"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+                price_history_map=price_history_map,
+            )
+            if rsi_price_fig:
+                st.plotly_chart(
+                    rsi_price_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("Price acceleration data requires price history.")
+
+        with pred_col2:
+            # Placeholder for Phase 28 Signal Persistence Quadrant
+            st.info("Signal Persistence Quadrant coming in Phase 28")
 
         # Section Header: Divergence Analysis
         st.markdown(
