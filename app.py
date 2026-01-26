@@ -34,7 +34,7 @@ from src.indicators import (
     detect_volatility_regime,
 )
 from src.sectors import calculate_sector_momentum, calculate_sector_rsi, get_sector
-from src.rsi import calculate_multi_tf_rsi, calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
+from src.rsi import calculate_multi_tf_rsi, calculate_multi_tf_rsi_with_history, calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
 load_dotenv()
@@ -1274,8 +1274,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         hourly = hourly_history.get(coin_id, {}) if hourly_history else {}
         daily = history.get(coin_id, {})
 
-        # Calculate multi-TF RSI
-        multi_rsi = calculate_multi_tf_rsi(hourly, daily)
+        # Calculate multi-TF RSI with history (for acceleration calculation)
+        multi_rsi = calculate_multi_tf_rsi_with_history(hourly, daily)
         if multi_rsi:
             multi_tf_rsi_all[coin_id] = multi_rsi
 
@@ -1731,10 +1731,15 @@ if st.session_state.coin_data is not None:
             """Show Acceleration Quadrant chart in fullscreen modal."""
             accel_coins = [
                 c for c in st.session_state.coin_data
-                if c.get("acceleration") is not None and c.get("volatility") is not None
+                if c.get("volatility") is not None
             ]
             if accel_coins:
-                accel_fig = build_acceleration_quadrant(accel_coins, height=900)
+                accel_fig = build_acceleration_quadrant(
+                    accel_coins,
+                    height=900,
+                    timeframe=st.session_state.get("show_timeframe"),
+                    multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+                )
                 st.plotly_chart(accel_fig, use_container_width=True)
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
@@ -1758,9 +1763,14 @@ if st.session_state.coin_data is not None:
 
         accel_coins = [
             c for c in st.session_state.coin_data
-            if c.get("acceleration") is not None and c.get("volatility") is not None
+            if c.get("volatility") is not None
         ]
-        accel_fig = build_acceleration_quadrant(accel_coins, height=550) if accel_coins else None
+        accel_fig = build_acceleration_quadrant(
+            accel_coins,
+            height=550,
+            timeframe=st.session_state.get("show_timeframe"),
+            multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+        ) if accel_coins else None
 
         # Hero Charts Row - Equal width columns
         chart_col1, chart_col2 = st.columns(2)

@@ -44,6 +44,51 @@ def calculate_rsi(closes: list[float], period: int = 14) -> float | None:
     return rsi
 
 
+def calculate_rsi_history(closes: list[float], period: int = 14) -> list[float]:
+    """
+    Calculate RSI history (all RSI values, not just the last one).
+
+    Args:
+        closes: List of closing prices (oldest to newest)
+        period: RSI period (default: 14)
+
+    Returns:
+        List of RSI values from oldest to newest, or empty list if insufficient data
+    """
+    if len(closes) < period + 1:
+        return []
+
+    deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains = [d if d > 0 else 0 for d in deltas]
+    losses = [-d if d < 0 else 0 for d in deltas]
+
+    # First average
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    rsi_history = []
+
+    # First RSI value
+    if avg_loss == 0:
+        rsi_history.append(100.0)
+    else:
+        rs = avg_gain / avg_loss
+        rsi_history.append(100 - (100 / (1 + rs)))
+
+    # Smoothed averages for remaining values
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
+        if avg_loss == 0:
+            rsi_history.append(100.0)
+        else:
+            rs = avg_gain / avg_loss
+            rsi_history.append(100 - (100 / (1 + rs)))
+
+    return rsi_history
+
+
 def extract_closes(market_chart: dict) -> list[float]:
     """
     Extract closing prices from CoinGecko market_chart response.
@@ -258,5 +303,79 @@ def calculate_multi_tf_rsi(
             rsi_1w = get_weekly_rsi(daily_data, period)
             if rsi_1w is not None:
                 result["1w"] = rsi_1w
+
+    return result
+
+
+def calculate_multi_tf_rsi_with_history(
+    hourly_data: dict | None, daily_data: dict | None, period: int = 14
+) -> dict[str, dict]:
+    """
+    Calculate RSI and RSI history for all 6 timeframes.
+
+    Args:
+        hourly_data: CoinGecko hourly data {"prices": [[ts_ms, price], ...]} or None
+        daily_data: CoinGecko daily data {"prices": [[ts_ms, price], ...]} or None
+        period: RSI period (default: 14)
+
+    Returns:
+        Dict with RSI value and history for available timeframes:
+        {"1h": {"rsi": 45.2, "history": [...]}, "4h": {...}, ...}
+        Omits timeframes with insufficient data.
+    """
+    result: dict[str, dict] = {}
+
+    # Hourly-based timeframes (1h, 4h, 12h)
+    if hourly_data:
+        hourly_prices = hourly_data.get("prices", [])
+
+        if hourly_prices:
+            # 1h RSI
+            hourly_closes = [price for _, price in hourly_prices]
+            rsi_hist_1h = calculate_rsi_history(hourly_closes, period)
+            if rsi_hist_1h:
+                result["1h"] = {"rsi": rsi_hist_1h[-1], "history": rsi_hist_1h}
+
+            # 4h RSI
+            closes_4h = aggregate_to_4h_closes(hourly_prices)
+            rsi_hist_4h = calculate_rsi_history(closes_4h, period)
+            if rsi_hist_4h:
+                result["4h"] = {"rsi": rsi_hist_4h[-1], "history": rsi_hist_4h}
+
+            # 12h RSI
+            closes_12h = aggregate_to_12h_closes(hourly_prices)
+            rsi_hist_12h = calculate_rsi_history(closes_12h, period)
+            if rsi_hist_12h:
+                result["12h"] = {"rsi": rsi_hist_12h[-1], "history": rsi_hist_12h}
+
+    # Daily-based timeframes (1d, 3d, 1w)
+    if daily_data:
+        daily_prices = daily_data.get("prices", [])
+
+        if daily_prices:
+            # 1d RSI
+            daily_closes = [price for _, price in daily_prices]
+            rsi_hist_1d = calculate_rsi_history(daily_closes, period)
+            if rsi_hist_1d:
+                result["1d"] = {"rsi": rsi_hist_1d[-1], "history": rsi_hist_1d}
+
+            # 3d RSI
+            closes_3d = aggregate_to_3d_closes(daily_prices)
+            rsi_hist_3d = calculate_rsi_history(closes_3d, period)
+            if rsi_hist_3d:
+                result["3d"] = {"rsi": rsi_hist_3d[-1], "history": rsi_hist_3d}
+
+            # 1w RSI - need to get weekly closes for history
+            weekly_closes: dict[tuple[int, int], float] = {}
+            for timestamp_ms, price in daily_prices:
+                dt = datetime.fromtimestamp(timestamp_ms / 1000)
+                iso = dt.isocalendar()
+                week_key = (iso.year, iso.week)
+                weekly_closes[week_key] = price
+            sorted_weeks = sorted(weekly_closes.keys())
+            closes_1w = [weekly_closes[week] for week in sorted_weeks]
+            rsi_hist_1w = calculate_rsi_history(closes_1w, period)
+            if rsi_hist_1w:
+                result["1w"] = {"rsi": rsi_hist_1w[-1], "history": rsi_hist_1w}
 
     return result

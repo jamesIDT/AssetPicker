@@ -823,7 +823,12 @@ def build_rsi_scatter(
     return fig
 
 
-def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) -> go.Figure:
+def build_acceleration_quadrant(
+    coins: list[dict[str, Any]],
+    height: int = 600,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+) -> go.Figure:
     """
     Build scatter plot showing RSI acceleration vs volatility regime for opportunity detection.
 
@@ -835,34 +840,70 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) 
 
     Args:
         coins: List of coin dicts with keys:
+            - id: Coin ID for multi_tf_rsi lookup
             - symbol: Coin symbol (e.g., "BTC")
-            - daily_rsi: Daily RSI value (0-100)
-            - acceleration: Dict with "acceleration" key from calculate_rsi_acceleration
+            - daily_rsi: Daily RSI value (0-100) - used if no timeframe specified
+            - acceleration: Dict with "acceleration" key - used if no timeframe specified
             - volatility: Dict with "ratio" key from detect_volatility_regime
         height: Chart height in pixels (default 600)
+        timeframe: Selected timeframe ("1h", "4h", "12h", "1d", "3d", "1w") or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
 
     Returns:
         Plotly Figure object with the quadrant scatter plot
     """
+    from src.indicators import calculate_rsi_acceleration
+
     fig = go.Figure()
 
-    # Filter coins with both acceleration and volatility data
+    # Determine timeframe label for display
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Filter coins with volatility data and calculate acceleration for selected timeframe
     valid_coins = []
     for coin in coins:
-        accel = coin.get("acceleration")
         vol = coin.get("volatility")
-        if accel is not None and vol is not None:
-            accel_val = accel.get("acceleration")
-            vol_ratio = vol.get("ratio")
-            if accel_val is not None and vol_ratio is not None:
-                valid_coins.append({
-                    "symbol": coin.get("symbol", "?"),
-                    "daily_rsi": coin.get("daily_rsi", 50),
-                    "acceleration": accel_val,
-                    "volatility_ratio": vol_ratio,
-                    "volatility_regime": vol.get("regime", "normal"),
-                    "interpretation": accel.get("interpretation", "stable"),
-                })
+        if vol is None:
+            continue
+        vol_ratio = vol.get("ratio")
+        if vol_ratio is None:
+            continue
+
+        coin_id = coin.get("id")
+        symbol = coin.get("symbol", "?")
+
+        # Get RSI and acceleration based on timeframe
+        rsi_val = None
+        accel_val = None
+        interpretation = "stable"
+
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            tf_data = multi_tf_rsi[coin_id].get(timeframe)
+            if tf_data:
+                rsi_val = tf_data.get("rsi")
+                history = tf_data.get("history", [])
+                if len(history) >= 3:
+                    accel_result = calculate_rsi_acceleration(history)
+                    if accel_result:
+                        accel_val = accel_result.get("acceleration")
+                        interpretation = accel_result.get("interpretation", "stable")
+        else:
+            # Fall back to daily (default behavior)
+            rsi_val = coin.get("daily_rsi", 50)
+            accel = coin.get("acceleration")
+            if accel:
+                accel_val = accel.get("acceleration")
+                interpretation = accel.get("interpretation", "stable")
+
+        if rsi_val is not None and accel_val is not None:
+            valid_coins.append({
+                "symbol": symbol,
+                "rsi": rsi_val,
+                "acceleration": accel_val,
+                "volatility_ratio": vol_ratio,
+                "volatility_regime": vol.get("regime", "normal"),
+                "interpretation": interpretation,
+            })
 
     if not valid_coins:
         fig.update_layout(
@@ -887,14 +928,14 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) 
     symbols = [c["symbol"] for c in valid_coins]
     accelerations = [c["acceleration"] for c in valid_coins]
     vol_ratios = [c["volatility_ratio"] for c in valid_coins]
-    daily_rsis = [c["daily_rsi"] for c in valid_coins]
+    rsi_values = [c["rsi"] for c in valid_coins]
 
     # Build customdata for tooltips
     customdata = []
     for c in valid_coins:
         customdata.append([
             c["symbol"],
-            c["daily_rsi"],
+            c["rsi"],
             c["acceleration"],
             c["volatility_regime"],
             c["interpretation"],
@@ -994,12 +1035,12 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) 
             customdata=customdata,
             marker={
                 "size": 12,
-                "color": daily_rsis,
+                "color": rsi_values,
                 "colorscale": "RdYlGn_r",  # Low RSI = green (oversold = opportunity)
                 "cmin": 0,
                 "cmax": 100,
                 "colorbar": {
-                    "title": "Daily RSI",
+                    "title": f"{tf_label} RSI",
                     "tickvals": [0, 25, 50, 75, 100],
                     "len": 0.8,
                     "tickfont": {"color": "#F6F8F7"},
@@ -1009,7 +1050,7 @@ def build_acceleration_quadrant(coins: list[dict[str, Any]], height: int = 600) 
             },
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"
-                "Daily RSI: %{customdata[1]:.1f}<br>"
+                f"{tf_label} RSI: " + "%{customdata[1]:.1f}<br>"
                 "Acceleration: %{customdata[2]:+.2f}<br>"
                 "Volatility Regime: %{customdata[3]}<br>"
                 "Interpretation: %{customdata[4]}"
