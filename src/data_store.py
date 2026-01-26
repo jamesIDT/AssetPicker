@@ -26,6 +26,7 @@ def save_data(
     btc_regime: dict | None,
     btc_weekly_rsi: float | None,
     multi_tf_divergence: dict | None = None,
+    multi_tf_rsi: dict | None = None,
 ) -> None:
     """Save screener data to persistent storage."""
     ensure_data_dir()
@@ -38,6 +39,7 @@ def save_data(
         "btc_regime": btc_regime,
         "btc_weekly_rsi": btc_weekly_rsi,
         "multi_tf_divergence": multi_tf_divergence or {},
+        "multi_tf_rsi": multi_tf_rsi or {},
     }
 
     with open(DATA_FILE, "w") as f:

@@ -191,6 +191,7 @@ def build_rsi_scatter(
     height: int = 600,
     beta_benchmark: str = "BTC",
     multi_tf_divergence: dict[str, dict] | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
     highlight_tf: str | None = None,
 ) -> go.Figure:
     """
@@ -357,9 +358,34 @@ def build_rsi_scatter(
         return fig
 
     symbols = [c["symbol"] for c in coin_data]
-    daily_rsi = [c["daily_rsi"] for c in coin_data]
     vol_mcap = [c["vol_mcap_ratio"] for c in coin_data]
     weekly_rsi = [c["weekly_rsi"] for c in coin_data]
+
+    # Determine X-axis RSI based on highlight_tf
+    # When a timeframe is highlighted, use that TF's RSI for the X-axis
+    TIMEFRAME_LABELS = {
+        "1h": "1-Hour RSI",
+        "4h": "4-Hour RSI",
+        "12h": "12-Hour RSI",
+        "1d": "Daily RSI",
+        "3d": "3-Day RSI",
+        "1w": "Weekly RSI",
+    }
+
+    if highlight_tf and multi_tf_rsi:
+        # Use highlighted timeframe's RSI
+        x_axis_title = TIMEFRAME_LABELS.get(highlight_tf, f"{highlight_tf} RSI")
+        daily_rsi = []
+        for c in coin_data:
+            coin_id = c.get("id")
+            coin_tf_rsi = multi_tf_rsi.get(coin_id, {}) if coin_id else {}
+            tf_rsi = coin_tf_rsi.get(highlight_tf)
+            # Fall back to daily_rsi if timeframe RSI not available
+            daily_rsi.append(tf_rsi if tf_rsi is not None else c["daily_rsi"])
+    else:
+        # Default to daily RSI
+        x_axis_title = "Daily RSI"
+        daily_rsi = [c["daily_rsi"] for c in coin_data]
 
     # Determine color values, colorscale, and range based on mode
     if color_mode == "beta_residual" and beta_data is not None:
@@ -654,7 +680,7 @@ def build_rsi_scatter(
             )
         )
 
-    # Layer 4: Bullish crosses (+)
+    # Layer 4: Bullish divergence coins (now circles - divergence shown via rings)
     if bullish_indices:
         fig.add_trace(
             go.Scatter(
@@ -666,8 +692,8 @@ def build_rsi_scatter(
                 textfont={"size": 9, "color": "#F6F8F7"},
                 customdata=subset(bullish_indices, customdata),
                 marker={
-                    "size": 12,
-                    "symbol": "cross",
+                    "size": 10,
+                    "symbol": "circle",
                     "color": subset(bullish_indices, color_values),
                     "colorscale": colorscale,
                     "cmin": cmin,
@@ -679,14 +705,14 @@ def build_rsi_scatter(
                         "tickfont": {"color": "#F6F8F7"},
                         "title_font": {"color": "#F6F8F7"},
                     },
-                    "line": {"width": 2, "color": "rgba(255,255,255,0.5)"},
+                    "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
                 },
                 hovertemplate=hovertemplate,
                 showlegend=False,
             )
         )
 
-    # Layer 5: Bearish diamonds
+    # Layer 5: Bearish divergence coins (now circles - divergence shown via rings)
     if bearish_indices:
         fig.add_trace(
             go.Scatter(
@@ -698,8 +724,8 @@ def build_rsi_scatter(
                 textfont={"size": 9, "color": "#F6F8F7"},
                 customdata=subset(bearish_indices, customdata),
                 marker={
-                    "size": 12,
-                    "symbol": "diamond",
+                    "size": 10,
+                    "symbol": "circle",
                     "color": subset(bearish_indices, color_values),
                     "colorscale": colorscale,
                     "cmin": cmin,
@@ -711,7 +737,7 @@ def build_rsi_scatter(
                         "tickfont": {"color": "#F6F8F7"},
                         "title_font": {"color": "#F6F8F7"},
                     },
-                    "line": {"width": 2, "color": "rgba(255,255,255,0.5)"},
+                    "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
                 },
                 hovertemplate=hovertemplate,
                 showlegend=False,
@@ -745,9 +771,9 @@ def build_rsi_scatter(
 
     # Minimal corner legend for experienced users
     # Include ring explanation if multi_tf_divergence is enabled
-    icon_legend = "● No div  + Bull  ◆ Bear  ○ Score 2+  ○○ Score 4"
+    icon_legend = "○ Score 2+  ○○ Score 4"
     if multi_tf_divergence:
-        icon_legend += "  |  Rings: 1w(in)→1h(out)"
+        icon_legend += "  |  Rings: 1w(in)→1h(out) green=bull red=bear"
     fig.add_annotation(
         x=0.99,
         y=0.99,
@@ -767,7 +793,7 @@ def build_rsi_scatter(
 
     fig.update_layout(
         title="",
-        xaxis_title="Daily RSI",
+        xaxis_title=x_axis_title,
         yaxis_title="Liquidity (Vol/MCap)",
         xaxis={
             "range": [0, 100],

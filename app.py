@@ -648,7 +648,7 @@ if "coin_data" not in st.session_state:
         hourly_cached = load_hourly_data()
         st.session_state.hourly_history = hourly_cached.get("hourly_history") if hourly_cached else None
         # Multi-timeframe data (loaded from cache)
-        st.session_state.multi_tf_rsi = {}
+        st.session_state.multi_tf_rsi = cached_data.get("multi_tf_rsi", {})
         st.session_state.multi_tf_divergence = cached_data.get("multi_tf_divergence", {})
     else:
         st.session_state.coin_data = None
@@ -1283,6 +1283,7 @@ with header_col2:
                     btc_regime=btc_regime,
                     btc_weekly_rsi=btc_weekly_rsi,
                     multi_tf_divergence=multi_tf_divergence,
+                    multi_tf_rsi=multi_tf_rsi,
                 )
                 st.rerun()
             except Exception as e:
@@ -1576,6 +1577,7 @@ if st.session_state.coin_data is not None:
                 height=900,
                 beta_benchmark=beta_benchmark,
                 multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
                 highlight_tf=st.session_state.highlight_tf,
             )
             st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
@@ -1605,6 +1607,7 @@ if st.session_state.coin_data is not None:
             height=550,
             beta_benchmark=beta_benchmark,
             multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
+            multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
             highlight_tf=st.session_state.highlight_tf,
         )
 
