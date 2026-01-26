@@ -1524,24 +1524,21 @@ if st.session_state.coin_data is not None:
             else:
                 st.markdown('<div style="color: #666; text-align: center; padding: 20px;">No regime data</div>', unsafe_allow_html=True)
 
-        # Extract beta residuals for beta mode based on selected benchmark
-        beta_residuals = None
-        if color_mode == "Beta Residual":
-            # Map benchmark selection to data key
-            beta_key_map = {
-                "BTC": "beta_info_btc",
-                "ETH": "beta_info_eth",
-                "Total3": "beta_info_total3",
-            }
-            beta_key = beta_key_map.get(beta_benchmark, "beta_info_btc")
+        # Extract beta residuals based on selected benchmark (always using beta mode now)
+        beta_key_map = {
+            "BTC": "beta_info_btc",
+            "ETH": "beta_info_eth",
+            "Total3": "beta_info_total3",
+        }
+        beta_key = beta_key_map.get(beta_benchmark, "beta_info_btc")
 
-            beta_residuals = []
-            for c in filtered_coin_data:
-                beta_info = c.get(beta_key) or c.get("beta_info")  # Fallback to default
-                if beta_info is not None:
-                    beta_residuals.append(beta_info.get("residual", 0))
-                else:
-                    beta_residuals.append(0)
+        beta_residuals = []
+        for c in filtered_coin_data:
+            beta_info = c.get(beta_key) or c.get("beta_info")  # Fallback to default
+            if beta_info is not None:
+                beta_residuals.append(beta_info.get("residual", 0))
+            else:
+                beta_residuals.append(0)
 
         # Extract sector data for tooltips
         sector_data = []
