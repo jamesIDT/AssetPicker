@@ -14,6 +14,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - ✅ **v2.0 Advanced Screening** - Phases 7-14 (shipped 2026-01-24)
 - ✅ **v3.0 UX Dashboard Redesign** - Phases 15-20 (shipped 2026-01-24)
 - ✅ **v4.0 Multi-Timeframe Divergence** - Phases 21-26 (shipped 2026-01-25)
+- 🚧 **v5.0 Predictive Signal Detection** - Phases 27-29 (in progress)
 
 ## Phases
 
@@ -252,6 +253,53 @@ Plans:
 
 ---
 
+### 🚧 v5.0 Predictive Signal Detection (IN PROGRESS)
+
+**Milestone Goal:** Add two new predictive quadrants that surface "about to pop" signals - coins where RSI is accelerating but price hasn't caught up yet. Track signal persistence to identify coiled springs with building pressure.
+
+**Context:** .planning/phases/27-predictive-signal-quadrants/27-CONTEXT.md
+
+#### Phase 27: RSI-Price Acceleration Quadrant
+
+**Goal**: New quadrant plotting RSI acceleration vs price acceleration with parity diagonal
+**Depends on**: v4.0 complete
+**Research**: Likely (price acceleration calculation approach)
+**Plans**: TBD
+
+Key deliverables:
+- Price acceleration calculation (rate of price change momentum)
+- Quadrant with diagonal parity line
+- Distance from diagonal = signal strength
+- Visual urgency cues for strongest signals
+
+#### Phase 28: Signal Persistence Quadrant
+
+**Goal**: Second quadrant showing signal strength vs persistence duration
+**Depends on**: Phase 27
+**Research**: Unlikely (builds on Phase 27 calculations)
+**Plans**: TBD
+
+Key deliverables:
+- Persistence tracking (periods in divergent state)
+- Signal strength vs persistence scatter
+- Top-right highlighting for mature strong signals
+- Fresh vs mature signal visual distinction
+
+#### Phase 29: Integration & Polish
+
+**Goal**: Integrate both quadrants into layout, add ranked signal list, polish
+**Depends on**: Phase 27, 28
+**Research**: Unlikely (layout patterns established)
+**Plans**: TBD
+
+Key deliverables:
+- Row 2 layout below existing quadrants
+- Ranked "about to pop" signal list
+- Consistent theming with existing quadrants
+- Cross-quadrant interaction (click to highlight across all)
+
+---
+
 ## Progress
 
 **Execution Order:**
@@ -285,3 +333,6 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 24. Timeframe Highlight | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 25. Divergence Matrix | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 26. Polish & Performance | v4.0 | 1/1 | Complete | 2026-01-25 |
+| 27. RSI-Price Accel Quadrant | v5.0 | 0/? | Not started | - |
+| 28. Signal Persistence Quadrant | v5.0 | 0/? | Not started | - |
+| 29. Integration & Polish | v5.0 | 0/? | Not started | - |

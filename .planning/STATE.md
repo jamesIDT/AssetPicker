@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-24)
 
 **Core value:** Surface crypto assets where both daily AND weekly RSI align in extreme zones with adequate liquidity
-**Current focus:** v4.0 Multi-Timeframe Divergence — Extend divergence detection to 6 timeframes with visual ring encoding
+**Current focus:** v5.0 Predictive Signal Detection — Surface "about to pop" signals where RSI accelerates before price
 
 ## Current Position
 
-Phase: 26 of 26 (Polish & Performance)
-Plan: 1 of 1 in current phase
-Status: Phase complete — v4.0 milestone complete!
-Last activity: 2026-01-25 — Completed 26-01-PLAN.md
+Phase: 27 of 29 (RSI-Price Acceleration Quadrant)
+Plan: 0 of ? in current phase
+Status: Context gathered, ready for planning
+Last activity: 2026-01-26 — v5.0 context captured
 
-Progress: ████████████████████ 100%
+Progress: ██████████████████░░ 90% (v4.0 complete, v5.0 starting)
 
 ## Performance Metrics
 
