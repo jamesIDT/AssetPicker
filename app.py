@@ -644,6 +644,7 @@ if "coin_data" not in st.session_state:
         st.session_state.failed_coins = cached_data["failed_coins"]
         st.session_state.btc_regime = cached_data["btc_regime"]
         st.session_state.btc_weekly_rsi = cached_data["btc_weekly_rsi"]
+        st.session_state.market_regimes = cached_data.get("market_regimes", {})
         # Load hourly data separately (different cache)
         hourly_cached = load_hourly_data()
         st.session_state.hourly_history = hourly_cached.get("hourly_history") if hourly_cached else None
@@ -660,6 +661,7 @@ if "coin_data" not in st.session_state:
         st.session_state.hourly_history = None
         st.session_state.multi_tf_rsi = {}
         st.session_state.multi_tf_divergence = {}
+        st.session_state.market_regimes = {}
 if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All Sectors"
 if "highlight_tf" not in st.session_state:
@@ -765,7 +767,7 @@ def aggregate_to_weekly(prices: list[tuple[int, float]]) -> list[float]:
     return [weekly_closes[week] for week in sorted_weeks]
 
 
-async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None, dict | None, dict, dict]:
+async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], int, dict | None, float | None, dict | None, dict, dict, dict]:
     """
     Fetch market data and calculate RSI for all coins.
 
@@ -773,7 +775,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         coin_ids: List of CoinGecko coin IDs
 
     Returns:
-        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_divergence)
+        Tuple of (coin data list, divergence data list, failed count, btc_regime, btc_weekly_rsi,
+        hourly_history, multi_tf_rsi, multi_tf_divergence, market_regimes)
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
@@ -797,6 +800,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
     # Calculate BTC regime and beta reference data if BTC data is available
     btc_regime = None
+    btc_daily_regime = None
     btc_weekly_rsi = None
     btc_returns: list[float] = []
     btc_daily_rsi: float | None = None
@@ -818,12 +822,19 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 if prev_price > 0:
                     btc_returns.append((curr_price - prev_price) / prev_price)
 
-        # Get BTC daily RSI for expected RSI calculation
+        # Get BTC daily RSI and regime
         btc_daily_rsi = get_daily_rsi(btc_hist)
+        btc_daily_closes = extract_closes(btc_hist)
+        btc_daily_rsi_history = get_rsi_history(btc_daily_closes)
+        if btc_daily_rsi_history:
+            btc_daily_regime = detect_regime(btc_daily_rsi_history)
 
     # Calculate ETH returns and RSI for ETH benchmark
     eth_returns: list[float] = []
     eth_daily_rsi: float | None = None
+    eth_weekly_rsi: float | None = None
+    eth_regime: dict | None = None
+    eth_daily_regime: dict | None = None
 
     if "ethereum" in history:
         eth_hist = history["ethereum"]
@@ -837,8 +848,19 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
                 if prev_price > 0:
                     eth_returns.append((curr_price - prev_price) / prev_price)
 
-        # Get ETH daily RSI
+        # Get ETH daily RSI and regime
         eth_daily_rsi = get_daily_rsi(eth_hist)
+        eth_daily_closes = extract_closes(eth_hist)
+        eth_daily_rsi_history = get_rsi_history(eth_daily_closes)
+        if eth_daily_rsi_history:
+            eth_daily_regime = detect_regime(eth_daily_rsi_history)
+
+        # Calculate ETH weekly RSI and regime
+        eth_weekly_closes = aggregate_to_weekly(eth_prices)
+        eth_weekly_rsi_history = get_rsi_history(eth_weekly_closes)
+        if eth_weekly_rsi_history:
+            eth_weekly_rsi = eth_weekly_rsi_history[-1]
+            eth_regime = detect_regime(eth_weekly_rsi_history)
 
     # Calculate Total3 (synthetic altcoin index) returns
     # Total3 = Total market cap minus BTC, ETH, and stablecoins
@@ -858,23 +880,44 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         prices = hist.get("prices", [])
         mcap = market_lookup[coin_id].get("market_cap", 0)
 
-        if len(prices) >= 2 and mcap > 0:
+        # Require at least 30 days of price data for Total3 calculation
+        if len(prices) >= 31 and mcap > 0:
             coin_returns_list = []
             for i in range(1, len(prices)):
                 prev_price = prices[i - 1][1]
                 curr_price = prices[i][1]
                 if prev_price > 0:
                     coin_returns_list.append((curr_price - prev_price) / prev_price)
-            if coin_returns_list:
+            if len(coin_returns_list) >= 30:
                 altcoin_data.append((coin_id, coin_returns_list, mcap))
 
     # Calculate market-cap weighted Total3 returns
     total3_returns: list[float] = []
     total3_daily_rsi: float | None = None
+    total3_weekly_rsi: float | None = None
+    total3_regime: dict | None = None
+    total3_daily_regime: dict | None = None
+
+    # Debug: count altcoins that could be used
+    altcoin_check_count = 0
+    altcoin_in_history = 0
+    altcoin_in_market = 0
+    for cid in coin_ids:
+        if cid not in excluded_ids:
+            altcoin_check_count += 1
+            if cid in history:
+                altcoin_in_history += 1
+            if cid in market_lookup:
+                altcoin_in_market += 1
+
+    # Track min_len for debug
+    t3_min_len = 0
+    t3_prices_len = 0
 
     if altcoin_data:
         # Find minimum return length across all altcoins
         min_len = min(len(r) for _, r, _ in altcoin_data)
+        t3_min_len = min_len
         if min_len >= 30:
             total_mcap = sum(mcap for _, _, mcap in altcoin_data)
 
@@ -893,12 +936,24 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             total3_prices = [100.0]
             for ret in total3_returns:
                 total3_prices.append(total3_prices[-1] * (1 + ret))
+            t3_prices_len = len(total3_prices)
 
-            # Calculate Total3 RSI
+            # Calculate Total3 daily RSI and regime
             if len(total3_prices) >= 15:
                 total3_rsi_history = get_rsi_history(total3_prices)
                 if total3_rsi_history:
                     total3_daily_rsi = total3_rsi_history[-1]
+                    total3_daily_regime = detect_regime(total3_rsi_history)
+
+            # Calculate Total3 weekly RSI and regime
+            # Aggregate daily prices to weekly (every 7th value as weekly close)
+            # Need at least 15 weekly closes for RSI (14 period + 1), so ~105 daily prices
+            if len(total3_prices) >= 105:
+                total3_weekly_closes = [total3_prices[i] for i in range(6, len(total3_prices), 7)]
+                total3_weekly_rsi_history = get_rsi_history(total3_weekly_closes)
+                if total3_weekly_rsi_history:
+                    total3_weekly_rsi = total3_weekly_rsi_history[-1]
+                    total3_regime = detect_regime(total3_weekly_rsi_history)
 
     # Pre-calculate coins_for_sector and sector momentum (needed for opportunity score)
     coins_for_sector_pre = []
@@ -1216,7 +1271,37 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         if multi_div:
             multi_tf_divergence_all[coin_id] = multi_div
 
-    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi_all, multi_tf_divergence_all
+    # Build market_regimes dict for 2x3 regime display (6 boxes)
+    market_regimes = {
+        "btc": {
+            "weekly_rsi": btc_weekly_rsi,
+            "daily_rsi": btc_daily_rsi,
+            "weekly_regime": btc_regime,
+            "daily_regime": btc_daily_regime,
+        },
+        "eth": {
+            "weekly_rsi": eth_weekly_rsi,
+            "daily_rsi": eth_daily_rsi,
+            "weekly_regime": eth_regime,
+            "daily_regime": eth_daily_regime,
+        },
+        "total3": {
+            "weekly_rsi": total3_weekly_rsi,
+            "daily_rsi": total3_daily_rsi,
+            "weekly_regime": total3_regime,
+            "daily_regime": total3_daily_regime,
+        },
+        "_debug": {
+            "altcoins_available": altcoin_check_count,
+            "altcoins_in_history": altcoin_in_history,
+            "altcoins_in_market": altcoin_in_market,
+            "altcoins_collected": len(altcoin_data),
+            "min_return_len": t3_min_len,
+            "total3_prices_len": t3_prices_len,
+        },
+    }
+
+    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi_all, multi_tf_divergence_all, market_regimes
 
 
 # Load watchlist with error handling
@@ -1266,7 +1351,7 @@ with header_col2:
     if st.button("Refresh Data", type="primary", use_container_width=True):
         with st.spinner("Fetching data from CoinGecko..."):
             try:
-                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_divergence = asyncio.run(fetch_all_data(coin_ids))
+                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_divergence, market_regimes = asyncio.run(fetch_all_data(coin_ids))
                 st.session_state.coin_data = data
                 st.session_state.divergence_data = divergence_data
                 st.session_state.last_updated = datetime.now()
@@ -1276,6 +1361,7 @@ with header_col2:
                 st.session_state.hourly_history = hourly_history
                 st.session_state.multi_tf_rsi = multi_tf_rsi
                 st.session_state.multi_tf_divergence = multi_tf_divergence
+                st.session_state.market_regimes = market_regimes
                 # Save to persistent storage
                 save_data(
                     coin_data=data,
@@ -1286,6 +1372,7 @@ with header_col2:
                     btc_weekly_rsi=btc_weekly_rsi,
                     multi_tf_divergence=multi_tf_divergence,
                     multi_tf_rsi=multi_tf_rsi,
+                    market_regimes=market_regimes,
                 )
                 st.rerun()
             except Exception as e:
@@ -1366,53 +1453,93 @@ if st.session_state.coin_data is not None:
             f"{sector} ({count})" for sector, count in sorted(sector_counts.items())
         ]
 
-        # Prepare regime display data
+        # Prepare regime display data - 6 individual boxes (2 rows x 3 columns)
         regime_html = ""
-        if st.session_state.btc_regime is not None:
-            regime = st.session_state.btc_regime
-            btc_rsi = st.session_state.btc_weekly_rsi
-            combined = regime.get("combined", "transition")
+        market_regimes = st.session_state.get("market_regimes", {})
 
-            # Map regime to display properties
-            regime_display = {
-                "bull_rising": ("🐂", "Bull", "Rising", "#4CAF50"),
-                "bull_falling": ("🐂", "Bull", "Cooling", "#4CAF50"),
-                "bull_neutral": ("🐂", "Bull", "Steady", "#4CAF50"),
-                "bear_rising": ("🐻", "Bear", "Recovering", "#f44336"),
-                "bear_falling": ("🐻", "Bear", "Falling", "#f44336"),
-                "bear_neutral": ("🐻", "Bear", "Steady", "#f44336"),
-                "transition": ("⚖️", "Transition", "", "#FFB020"),
-            }
+        # Map regime combined state to display properties
+        regime_display_map = {
+            "bull_rising": ("🐂", "Bull", "Rising", "#4CAF50"),
+            "bull_falling": ("🐂", "Bull", "Cooling", "#4CAF50"),
+            "bull_neutral": ("🐂", "Bull", "Steady", "#4CAF50"),
+            "bear_rising": ("🐻", "Bear", "Recovering", "#f44336"),
+            "bear_falling": ("🐻", "Bear", "Falling", "#f44336"),
+            "bear_neutral": ("🐻", "Bear", "Steady", "#f44336"),
+            "transition": ("⚖️", "Transition", "", "#FFB020"),
+        }
 
-            emoji, regime_label, momentum_label, color = regime_display.get(
+        def build_regime_box(label: str, rsi_val: float | None, regime: dict | None) -> str:
+            """Build a single regime box HTML."""
+            combined = regime.get("combined", "transition") if regime else "transition"
+            emoji, regime_label, momentum_label, color = regime_display_map.get(
                 combined, ("⚖️", "Transition", "", "#FFB020")
             )
+            rsi_text = f"{rsi_val:.0f}" if rsi_val is not None else "-"
+            # Combine regime and momentum on one line
+            regime_momentum = f"{regime_label} : {momentum_label}" if momentum_label else regime_label
 
-            momentum_text = f" · {momentum_label}" if momentum_label else ""
-            rsi_text = f"BTC Weekly RSI: {btc_rsi:.1f}" if btc_rsi is not None else ""
-
-            regime_html = f"""
+            return f"""
             <div style="
                 background: rgba(30, 30, 35, 0.6);
                 border: 1px solid {color}40;
-                border-radius: 8px;
-                padding: 12px 16px;
+                border-radius: 6px;
+                padding: 8px 10px;
                 text-align: center;
+                min-width: 80px;
             ">
-                <div style="font-size: 1.5rem; margin-bottom: 4px;">{emoji}</div>
-                <div style="font-size: 1.1rem; font-weight: 600; color: {color};">{regime_label}</div>
-                <div style="font-size: 0.8rem; color: #888;">{momentum_text.strip(' · ')}</div>
-                <div style="font-size: 0.85rem; color: #aaa; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">{rsi_text}</div>
+                <div style="font-size: 0.85rem; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">{label}</div>
+                <div style="font-size: 1.2rem; margin-bottom: 2px;">{emoji}</div>
+                <div style="font-size: 0.85rem; font-weight: 600; color: {color};">{regime_momentum}</div>
+                <div style="font-size: 1rem; color: #ccc; margin-top: 4px; padding-top: 6px; border-top: 1px solid #333; font-weight: 600;">{rsi_text}</div>
             </div>
             """
 
-        # Build sector breakdown HTML
+        # Extract data for all 6 boxes
+        btc_data = market_regimes.get("btc", {})
+        eth_data = market_regimes.get("eth", {})
+        total3_data = market_regimes.get("total3", {})
+
+        # Check if we have any data
+        has_data = any([
+            btc_data.get("weekly_rsi"), btc_data.get("daily_rsi"),
+            eth_data.get("weekly_rsi"), eth_data.get("daily_rsi"),
+            total3_data.get("weekly_rsi"), total3_data.get("daily_rsi"),
+        ])
+
+        if has_data:
+            # Build 6 boxes: top row = weekly, bottom row = daily
+            btc_weekly_box = build_regime_box("BTC 1W", btc_data.get("weekly_rsi"), btc_data.get("weekly_regime"))
+            eth_weekly_box = build_regime_box("ETH 1W", eth_data.get("weekly_rsi"), eth_data.get("weekly_regime"))
+            t3_weekly_box = build_regime_box("T3 1W", total3_data.get("weekly_rsi"), total3_data.get("weekly_regime"))
+            btc_daily_box = build_regime_box("BTC 1D", btc_data.get("daily_rsi"), btc_data.get("daily_regime"))
+            eth_daily_box = build_regime_box("ETH 1D", eth_data.get("daily_rsi"), eth_data.get("daily_regime"))
+            t3_daily_box = build_regime_box("T3 1D", total3_data.get("daily_rsi"), total3_data.get("daily_regime"))
+
+            regime_html = f"""
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                {btc_weekly_box}
+                {eth_weekly_box}
+                {t3_weekly_box}
+                {btc_daily_box}
+                {eth_daily_box}
+                {t3_daily_box}
+            </div>
+            """
+
+        # Build sector chips HTML with colors
+        sector_colors = {
+            "Majors": "#3b82f6",  # Blue
+            "DeFi": "#8b5cf6",    # Purple
+            "AI": "#10b981",      # Green
+            "DeSci": "#f59e0b",   # Amber
+        }
         sector_order = ["Majors", "DeFi", "AI", "DeSci"]
-        sector_items = []
+        sector_chips = []
         for s in sector_order:
             if s in sector_counts:
-                sector_items.append(f'<span style="color: #888;">{s}</span> <span style="color: #ccc;">{sector_counts[s]}</span>')
-        sector_breakdown_html = " · ".join(sector_items)
+                color = sector_colors.get(s, "#666")
+                chip = f'<div style="display: inline-flex; align-items: center; gap: 6px; background: {color}20; border: 1px solid {color}40; border-radius: 4px; padding: 4px 10px; margin: 3px;"><span style="color: {color}; font-size: 0.75rem; font-weight: 500;">{s}</span><span style="color: #ccc; font-size: 0.85rem; font-weight: 600;">{sector_counts[s]}</span></div>'
+                sector_chips.append(chip)
 
         # === THREE-COLUMN CONTROL STRIP ===
         ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1, 1, 1])
@@ -1506,12 +1633,14 @@ if st.session_state.coin_data is not None:
             display_count = filtered_count if st.session_state.selected_sector != "All Sectors" else total_coins
 
             st.markdown(f"""
-            <div style="text-align: center; padding: 8px 0;">
-                <div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Coverage</div>
-                <div style="font-size: 2.5rem; font-weight: 700; color: #F6F8F7; line-height: 1;">{display_count}</div>
-                <div style="font-size: 0.9rem; color: #888; margin-top: 4px;">coins</div>
-                <div style="font-size: 0.8rem; color: #666; margin-top: 12px; line-height: 1.6;">
-                    {sector_breakdown_html}
+            <div style="text-align: center; padding: 4px 0;">
+                <div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;">Coverage</div>
+                <div style="display: flex; align-items: baseline; justify-content: center; gap: 6px;">
+                    <span style="font-size: 2.2rem; font-weight: 700; color: #F6F8F7; line-height: 1;">{display_count}</span>
+                    <span style="font-size: 0.9rem; color: #666;">coins</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; justify-content: center; margin-top: 10px;">
+                    {''.join(sector_chips)}
                 </div>
             </div>
             """, unsafe_allow_html=True)

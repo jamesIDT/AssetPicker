@@ -27,6 +27,7 @@ def save_data(
     btc_weekly_rsi: float | None,
     multi_tf_divergence: dict | None = None,
     multi_tf_rsi: dict | None = None,
+    market_regimes: dict | None = None,
 ) -> None:
     """Save screener data to persistent storage."""
     ensure_data_dir()
@@ -40,6 +41,7 @@ def save_data(
         "btc_weekly_rsi": btc_weekly_rsi,
         "multi_tf_divergence": multi_tf_divergence or {},
         "multi_tf_rsi": multi_tf_rsi or {},
+        "market_regimes": market_regimes or {},
     }
 
     with open(DATA_FILE, "w") as f:
@@ -52,7 +54,8 @@ def load_data() -> dict | None:
 
     Returns:
         Dictionary with keys: coin_data, divergence_data, last_updated,
-        failed_coins, btc_regime, btc_weekly_rsi, multi_tf_divergence
+        failed_coins, btc_regime, btc_weekly_rsi, multi_tf_divergence,
+        market_regimes (BTC/ETH/Total3 weekly+daily RSI data)
         Or None if no data file exists.
     """
     if not DATA_FILE.exists():
