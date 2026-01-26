@@ -510,103 +510,88 @@ def build_rsi_scatter(
             "<extra></extra>"
         )
 
-    # Layer 0: Multi-timeframe divergence ring segments (added BEFORE markers)
-    # Ring segments show divergence status for 6 timeframes around each marker
-    # Timeframe order (clockwise from top): 1w, 3d, 1d, 12h, 4h, 1h
+    # Layer 0: Multi-timeframe divergence ring (added BEFORE main markers)
+    # Shows overall divergence status as a ring around each marker
+    # Ring color: green (bullish dominant), red (bearish dominant), gray (mixed/none)
+    # Uses scatter markers with fixed pixel size (doesn't scale on zoom)
+    # Detailed per-timeframe breakdown available in Divergence Matrix section
     TIMEFRAME_ORDER = ["1w", "3d", "1d", "12h", "4h", "1h"]
-    DIVERGENCE_COLORS = {
-        "bullish": "#22c55e",  # Green
-        "bearish": "#ef4444",  # Red
-        "none": "#6b7280",     # Gray
-    }
 
     if multi_tf_divergence:
-        # Ring dimensions in DATA coordinates
-        # X-axis: RSI 0-100 (linear), use RSI units for x-radius
-        # Y-axis: Log scale, use multiplicative factor for y-radius
-        # This ensures rings move with markers when zooming
-        ring_inner_radius_x = 2.5   # RSI units (inner edge)
-        ring_outer_radius_x = 4.5   # RSI units (outer edge)
-
-        # For log-scale y-axis, use multiplicative factors
-        # inner_y = cy / k_inner, outer_y = cy * k_outer
-        # This keeps ring visually consistent across different y positions
-        ring_inner_factor = 1.15  # inner edge = cy / 1.15
-        ring_outer_factor = 1.30  # outer edge = cy * 1.30
-
-        # Pre-calculate segment angles (same for all coins)
-        segment_angles = [get_segment_angles(seg_idx) for seg_idx in range(6)]
-
-        # Collect all ring segment shapes in a list (batch add for performance)
-        ring_shapes = []
+        ring_x = []
+        ring_y = []
+        ring_colors = []
 
         for i, c in enumerate(coin_data):
             coin_id = c.get("id")
             if not coin_id:
                 continue
 
-            # Get marker position in data coords
-            cx_data = daily_rsi[i]
-            cy_data = vol_mcap[i]
+            cx = daily_rsi[i]
+            cy = vol_mcap[i]
 
-            # Skip if position invalid
-            if cx_data is None or cy_data is None or cy_data <= 0:
+            if cx is None or cy is None or cy <= 0:
                 continue
 
-            # Calculate y-radii based on log scale
-            # For log scale: distance from cy to cy*k is visually consistent
-            inner_radius_y = cy_data - (cy_data / ring_inner_factor)
-            outer_radius_y = (cy_data * ring_outer_factor) - cy_data
-
-            # Get multi-TF divergence data for this coin
+            # Get divergence data for this coin across all timeframes
             coin_mtf = multi_tf_divergence.get(coin_id, {})
 
-            # Draw 6 segments for each timeframe
-            for seg_idx, tf in enumerate(TIMEFRAME_ORDER):
-                # Get divergence type for this timeframe
+            # Count divergence types across timeframes
+            bull_count = 0
+            bear_count = 0
+            for tf in TIMEFRAME_ORDER:
                 tf_data = coin_mtf.get(tf, {})
                 div_type = tf_data.get("type", "none") if tf_data else "none"
-                base_color = DIVERGENCE_COLORS.get(div_type, DIVERGENCE_COLORS["none"])
+                if div_type == "bullish":
+                    bull_count += 1
+                elif div_type == "bearish":
+                    bear_count += 1
 
-                # Determine segment opacity based on highlight mode
-                if highlight_tf is None or highlight_tf == tf:
-                    segment_opacity = 1.0
+            # Determine ring color based on dominant divergence
+            # Apply highlight_tf filter if set
+            if highlight_tf:
+                # Show only the highlighted timeframe's divergence
+                tf_data = coin_mtf.get(highlight_tf, {})
+                div_type = tf_data.get("type", "none") if tf_data else "none"
+                if div_type == "bullish":
+                    ring_color = "#22c55e"  # Green
+                elif div_type == "bearish":
+                    ring_color = "#ef4444"  # Red
                 else:
-                    segment_opacity = 0.3
+                    ring_color = "#6b7280"  # Gray
+            else:
+                # Show overall divergence status
+                if bull_count > 0 and bear_count == 0:
+                    ring_color = "#22c55e"  # Pure bullish - green
+                elif bear_count > 0 and bull_count == 0:
+                    ring_color = "#ef4444"  # Pure bearish - red
+                elif bull_count > 0 and bear_count > 0:
+                    ring_color = "#f59e0b"  # Mixed - amber
+                else:
+                    ring_color = "#6b7280"  # None - gray
 
-                # Apply opacity to fill color using rgba format
-                fill_color = hex_to_rgba(base_color, segment_opacity)
+            ring_x.append(cx)
+            ring_y.append(cy)
+            ring_colors.append(ring_color)
 
-                # Get pre-calculated angles for this segment
-                start_angle, end_angle = segment_angles[seg_idx]
-
-                # Create arc path in DATA coordinates (moves with zoom)
-                path = create_arc_segment_path(
-                    cx=cx_data,
-                    cy=cy_data,
-                    inner_radius_x=ring_inner_radius_x,
-                    outer_radius_x=ring_outer_radius_x,
-                    inner_radius_y=inner_radius_y,
-                    outer_radius_y=outer_radius_y,
-                    start_angle=start_angle,
-                    end_angle=end_angle,
+        # Add single scatter trace for all divergence rings
+        if ring_x:
+            fig.add_trace(
+                go.Scatter(
+                    x=ring_x,
+                    y=ring_y,
+                    mode="markers",
+                    marker={
+                        "size": 24,  # Ring size in pixels (fixed, doesn't scale on zoom)
+                        "symbol": "circle-open",
+                        "color": ring_colors,
+                        "line": {"width": 3, "color": ring_colors},
+                    },
+                    showlegend=False,
+                    hoverinfo="skip",
+                    name="MTF-Ring",
                 )
-
-                ring_shapes.append({
-                    "type": "path",
-                    "path": path,
-                    "fillcolor": fill_color,
-                    "line": {"width": 0.5, "color": "rgba(255,255,255,0.3)"},
-                    "layer": "below",
-                    "xref": "x",
-                    "yref": "y",
-                })
-
-        # Batch add all ring shapes at once (much faster than individual add_shape calls)
-        if ring_shapes:
-            # Get existing shapes and append ring shapes
-            existing_shapes = list(fig.layout.shapes) if fig.layout.shapes else []
-            fig.update_layout(shapes=existing_shapes + ring_shapes)
+            )
 
     # Layer 1: Outer rings for score >= 2 (thin ring)
     if score_2_indices:
@@ -775,7 +760,7 @@ def build_rsi_scatter(
     # Include ring explanation if multi_tf_divergence is enabled
     icon_legend = "● No div  + Bull  ◆ Bear  ○ Score 2+  ○○ Score 4"
     if multi_tf_divergence:
-        icon_legend += "  |  Ring: 6 TFs (1w→1h clockwise)"
+        icon_legend += "  |  Ring: green=bull red=bear amber=mixed"
     fig.add_annotation(
         x=0.99,
         y=0.99,
