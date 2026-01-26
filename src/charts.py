@@ -1200,3 +1200,295 @@ def build_divergence_matrix(
     column_order = ["Symbol"] + TIMEFRAME_ORDER + ["Total"]
 
     return matrix_data, column_order
+
+
+def build_rsi_price_quadrant(
+    coins: list[dict[str, Any]],
+    height: int = 550,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+    price_history_map: dict[str, list[float]] | None = None,
+) -> go.Figure | None:
+    """
+    Build scatter plot showing RSI acceleration vs Price acceleration for predictive signals.
+
+    This chart surfaces "about to pop" signals by comparing RSI acceleration to price acceleration.
+    Points BELOW the diagonal parity line have RSI leading price (bullish signal).
+    Points ABOVE the diagonal have price leading RSI (momentum waning).
+
+    Quadrants:
+    - Bottom-Right (RSI+ / Price-): "Building" - RSI rising, price flat/falling = coiled spring
+    - Top-Right (RSI+ / Price+): "Confirmed" - both accelerating up
+    - Top-Left (RSI- / Price+): "Exhausting" - price still up but RSI fading
+    - Bottom-Left (RSI- / Price-): "Capitulating" - both falling
+
+    Args:
+        coins: List of coin dicts with keys:
+            - id: Coin ID for multi_tf_rsi lookup
+            - symbol: Coin symbol (e.g., "BTC")
+            - acceleration: Dict with "acceleration" key from calculate_rsi_acceleration
+        height: Chart height in pixels (default 550)
+        timeframe: Selected timeframe ("1h", "4h", "12h", "1d", "3d", "1w") or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
+        price_history_map: Dict mapping coin_id -> list of recent prices (oldest to newest)
+
+    Returns:
+        Plotly Figure object with the quadrant scatter plot, or None if no valid data
+    """
+    from src.indicators import calculate_rsi_acceleration, calculate_price_acceleration
+
+    fig = go.Figure()
+
+    # Determine timeframe label for display
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Filter coins with both RSI and price acceleration data
+    valid_coins = []
+    for coin in coins:
+        coin_id = coin.get("id")
+        symbol = coin.get("symbol", "?")
+
+        if not coin_id:
+            continue
+
+        # Get RSI acceleration based on timeframe
+        rsi_accel = None
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            tf_data = multi_tf_rsi[coin_id].get(timeframe)
+            if tf_data is not None and isinstance(tf_data, dict):
+                history = tf_data.get("history", [])
+                if len(history) >= 3:
+                    accel_result = calculate_rsi_acceleration(history)
+                    if accel_result:
+                        rsi_accel = accel_result.get("acceleration")
+
+        # Fall back to daily acceleration if timeframe-specific not available
+        if rsi_accel is None:
+            accel = coin.get("acceleration")
+            if accel:
+                rsi_accel = accel.get("acceleration")
+
+        # Get price acceleration
+        price_accel = None
+        if price_history_map and coin_id in price_history_map:
+            prices = price_history_map[coin_id]
+            if prices and len(prices) >= 3:
+                price_accel_result = calculate_price_acceleration(prices)
+                if price_accel_result:
+                    price_accel = price_accel_result.get("acceleration")
+
+        # Also check coin's price_acceleration field if available
+        if price_accel is None:
+            coin_price_accel = coin.get("price_acceleration")
+            if coin_price_accel:
+                price_accel = coin_price_accel.get("acceleration")
+
+        if rsi_accel is not None and price_accel is not None:
+            # Calculate gap score (RSI leading price = positive = bullish signal)
+            gap_score = rsi_accel - price_accel
+
+            valid_coins.append({
+                "symbol": symbol,
+                "rsi_accel": rsi_accel,
+                "price_accel": price_accel,
+                "gap_score": gap_score,
+            })
+
+    if not valid_coins:
+        fig.update_layout(
+            title="RSI-Price Acceleration Quadrant",
+            xaxis_title="RSI Acceleration",
+            yaxis_title="Price Acceleration (%)",
+            annotations=[
+                {
+                    "text": "No RSI/price acceleration data available",
+                    "xref": "paper",
+                    "yref": "paper",
+                    "x": 0.5,
+                    "y": 0.5,
+                    "showarrow": False,
+                    "font": {"size": 16, "color": "#F6F8F7"},
+                },
+            ],
+            paper_bgcolor="#4A4F5E",
+            plot_bgcolor="#4A4F5E",
+        )
+        return fig
+
+    # Extract data for plotting
+    symbols = [c["symbol"] for c in valid_coins]
+    rsi_accels = [c["rsi_accel"] for c in valid_coins]
+    price_accels = [c["price_accel"] for c in valid_coins]
+    gap_scores = [c["gap_score"] for c in valid_coins]
+
+    # Calculate axis ranges from data
+    x_min = min(rsi_accels) - 1
+    x_max = max(rsi_accels) + 1
+    y_min = min(price_accels) - 1
+    y_max = max(price_accels) + 1
+
+    # Ensure axes include 0 for quadrant division
+    if x_min > -1:
+        x_min = -1
+    if x_max < 1:
+        x_max = 1
+    if y_min > -1:
+        y_min = -1
+    if y_max < 1:
+        y_max = 1
+
+    # Build customdata for tooltips
+    customdata = []
+    for c in valid_coins:
+        # Determine interpretation based on gap_score and position
+        if c["gap_score"] > 2:
+            interp = "RSI Leading (Bullish)"
+        elif c["gap_score"] < -2:
+            interp = "Price Leading (Caution)"
+        else:
+            interp = "Parity"
+
+        customdata.append([
+            c["symbol"],
+            c["rsi_accel"],
+            c["price_accel"],
+            c["gap_score"],
+            interp,
+        ])
+
+    # Collect all shapes for batch update (performance optimization)
+    shapes = []
+
+    # Quadrant background shading
+    # Bottom-Right (RSI+ / Price-): "Building" - green tint (BEST SIGNAL)
+    shapes.append({
+        "type": "rect", "x0": 0, "x1": x_max, "y0": y_min, "y1": 0,
+        "fillcolor": "rgba(76, 175, 80, 0.15)", "line_width": 0, "layer": "below"
+    })
+    # Top-Right (RSI+ / Price+): "Confirmed" - blue tint
+    shapes.append({
+        "type": "rect", "x0": 0, "x1": x_max, "y0": 0, "y1": y_max,
+        "fillcolor": "rgba(33, 150, 243, 0.12)", "line_width": 0, "layer": "below"
+    })
+    # Top-Left (RSI- / Price+): "Exhausting" - orange tint
+    shapes.append({
+        "type": "rect", "x0": x_min, "x1": 0, "y0": 0, "y1": y_max,
+        "fillcolor": "rgba(255, 152, 0, 0.12)", "line_width": 0, "layer": "below"
+    })
+    # Bottom-Left (RSI- / Price-): "Capitulating" - red tint
+    shapes.append({
+        "type": "rect", "x0": x_min, "x1": 0, "y0": y_min, "y1": 0,
+        "fillcolor": "rgba(244, 67, 54, 0.12)", "line_width": 0, "layer": "below"
+    })
+
+    # Quadrant boundary lines (cream color for dark theme)
+    # Vertical line at x=0
+    shapes.append({
+        "type": "line", "x0": 0, "x1": 0, "y0": y_min, "y1": y_max,
+        "line": {"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
+    })
+    # Horizontal line at y=0
+    shapes.append({
+        "type": "line", "x0": x_min, "x1": x_max, "y0": 0, "y1": 0,
+        "line": {"color": "rgba(246,248,247,0.15)", "width": 1, "dash": "dot"}
+    })
+
+    # Diagonal parity line (y = x scaled appropriately)
+    # The diagonal represents where RSI acceleration equals price acceleration
+    diag_min = min(x_min, y_min)
+    diag_max = max(x_max, y_max)
+    shapes.append({
+        "type": "line", "x0": diag_min, "x1": diag_max, "y0": diag_min, "y1": diag_max,
+        "line": {"color": "rgba(182, 154, 90, 0.5)", "width": 2, "dash": "dash"}
+    })
+
+    # Add scatter trace with color by gap score
+    fig.add_trace(
+        go.Scatter(
+            x=rsi_accels,
+            y=price_accels,
+            mode="markers+text",
+            text=symbols,
+            textposition="top center",
+            textfont={"size": 9, "color": "#F6F8F7"},
+            customdata=customdata,
+            marker={
+                "size": 12,
+                "color": gap_scores,
+                "colorscale": "RdYlGn",  # Positive gap (RSI leading) = green
+                "cmin": -10,
+                "cmax": 10,
+                "colorbar": {
+                    "title": "Gap Score",
+                    "tickvals": [-10, -5, 0, 5, 10],
+                    "len": 0.8,
+                    "tickfont": {"color": "#F6F8F7"},
+                    "title_font": {"color": "#F6F8F7"},
+                },
+                "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
+            },
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                f"{tf_label} RSI Accel: " + "%{customdata[1]:+.2f}<br>"
+                "Price Accel: %{customdata[2]:+.2f}%<br>"
+                "Gap Score: %{customdata[3]:+.2f}<br>"
+                "%{customdata[4]}"
+                "<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+
+    # Quadrant labels as annotations (cream color for dark theme)
+    label_font = {"size": 24, "color": "rgba(246,248,247,0.10)", "family": "Arial Black"}
+
+    # Use batch shapes update
+    fig.update_layout(
+        shapes=shapes,
+        title="",
+        xaxis_title="RSI Acceleration",
+        yaxis_title="Price Acceleration (%)",
+        xaxis={
+            "range": [x_min, x_max],
+            "zeroline": True,
+            "zerolinecolor": "rgba(246, 248, 247, 0.15)",
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
+        },
+        yaxis={
+            "range": [y_min, y_max],
+            "zeroline": True,
+            "zerolinecolor": "rgba(246, 248, 247, 0.15)",
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
+        },
+        showlegend=False,
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 60, "r": 100, "t": 30, "b": 60},
+        autosize=True,
+        height=height,
+        # Quadrant labels
+        annotations=[
+            # Bottom-Right: Building (BEST)
+            {"x": 0.85, "y": 0.08, "text": "Building",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Top-Right: Confirmed
+            {"x": 0.85, "y": 0.92, "text": "Confirmed",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Top-Left: Exhausting
+            {"x": 0.15, "y": 0.92, "text": "Exhausting",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Bottom-Left: Capitulating
+            {"x": 0.15, "y": 0.08, "text": "Capitulating",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Diagonal label
+            {"x": 0.95, "y": 0.02, "text": "RSI = Price (parity)",
+             "showarrow": False, "font": {"size": 10, "color": "rgba(182, 154, 90, 0.7)"},
+             "xref": "paper", "yref": "paper", "xanchor": "right"},
+        ],
+    )
+
+    return fig
