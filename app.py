@@ -664,6 +664,8 @@ if "selected_sector" not in st.session_state:
     st.session_state.selected_sector = "All Sectors"
 if "highlight_tf" not in st.session_state:
     st.session_state.highlight_tf = None
+if "show_timeframe" not in st.session_state:
+    st.session_state.show_timeframe = None
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -1431,39 +1433,37 @@ if st.session_state.coin_data is not None:
             else:
                 st.session_state.selected_sector = selected.split(" (")[0]
 
-            color_mode = st.radio(
-                "Color by",
-                ["Weekly RSI", "Beta Residual"],
-                horizontal=False,
-                label_visibility="visible",
-                key="color_mode_radio",
-            )
-
-            # Show benchmark selector when Beta Residual mode is selected
-            beta_benchmark = "BTC"
-            if color_mode == "Beta Residual":
+            # Line 1: Beta Benchmark + Z-Score checkbox
+            line1_col1, line1_col2 = st.columns([3, 1])
+            with line1_col1:
                 beta_benchmark = st.radio(
                     "Beta Benchmark",
                     ["BTC", "ETH", "Total3"],
                     horizontal=True,
                     label_visibility="visible",
                     key="beta_benchmark_radio",
-                    help="BTC: vs Bitcoin | ETH: vs Ethereum | Total3: vs Altcoin Index (excl. BTC, ETH, stables)",
                 )
+            with line1_col2:
+                show_zscore = st.checkbox("Z-Score", value=False, key="zscore_checkbox")
 
-            show_zscore = st.checkbox(
-                "Show Z-Score Labels",
-                value=False,
+            # Check if multi-TF data is available
+            mtf_data_available = bool(st.session_state.get("multi_tf_rsi"))
+
+            # Line 2: Show Timeframe (controls X-axis)
+            show_tf = st.radio(
+                "Show Timeframe",
+                ["1d", "1w", "3d", "12h", "4h", "1h"],
+                horizontal=True,
+                label_visibility="visible",
+                key="show_tf_radio",
+                disabled=not mtf_data_available,
             )
 
-            # Timeframe highlight selector
-            # Check if multi-TF data is available
-            mtf_data_available = bool(st.session_state.get("multi_tf_divergence"))
-
+            # Line 3: Highlight Timeframe (controls ring highlighting)
             tf_highlight = st.radio(
                 "Highlight Timeframe",
                 ["All", "1w", "3d", "1d", "12h", "4h", "1h"],
-                horizontal=False,
+                horizontal=True,
                 label_visibility="visible",
                 key="tf_highlight_radio",
                 disabled=not mtf_data_available,
@@ -1471,15 +1471,18 @@ if st.session_state.coin_data is not None:
 
             # Show note if no MTF data
             if not mtf_data_available:
-                st.caption("Refresh data to enable timeframe highlighting")
+                st.caption("Refresh data to enable timeframe controls")
 
-            # Convert "All" to None for the chart parameter
+            # Convert selections for chart parameters
+            # show_tf controls X-axis RSI (None means use daily)
+            show_timeframe = None if show_tf == "1d" else show_tf
+
+            # highlight_tf controls ring highlighting (None means show all)
             highlight_tf = None if tf_highlight == "All" else tf_highlight
 
-            # Store in session state for consistency
-            if "highlight_tf" not in st.session_state:
-                st.session_state.highlight_tf = None
+            # Store in session state
             st.session_state.highlight_tf = highlight_tf
+            st.session_state.show_timeframe = show_timeframe
 
         # Filter coin data if sector selected
         if st.session_state.selected_sector != "All Sectors":
@@ -1570,7 +1573,7 @@ if st.session_state.coin_data is not None:
                 filtered_coin_data,
                 filtered_divergence_data,
                 beta_data=beta_residuals,
-                color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
+                color_mode="beta_residual",
                 sector_data=sector_data,
                 zscore_data=zscore_data,
                 show_zscore=show_zscore,
@@ -1578,6 +1581,7 @@ if st.session_state.coin_data is not None:
                 beta_benchmark=beta_benchmark,
                 multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
                 multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+                show_timeframe=st.session_state.get("show_timeframe"),
                 highlight_tf=st.session_state.highlight_tf,
             )
             st.plotly_chart(fig, use_container_width=True, config={"responsive": True})
@@ -1600,7 +1604,7 @@ if st.session_state.coin_data is not None:
             filtered_coin_data,
             filtered_divergence_data,
             beta_data=beta_residuals,
-            color_mode="beta_residual" if color_mode == "Beta Residual" else "weekly_rsi",
+            color_mode="beta_residual",
             sector_data=sector_data,
             zscore_data=zscore_data,
             show_zscore=show_zscore,
@@ -1608,6 +1612,7 @@ if st.session_state.coin_data is not None:
             beta_benchmark=beta_benchmark,
             multi_tf_divergence=st.session_state.get("multi_tf_divergence"),
             multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+            show_timeframe=st.session_state.get("show_timeframe"),
             highlight_tf=st.session_state.highlight_tf,
         )
 

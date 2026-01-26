@@ -184,7 +184,7 @@ def build_rsi_scatter(
     coin_data: list[dict],
     divergence_data: list[dict] | None = None,
     beta_data: list[float] | None = None,
-    color_mode: str = "weekly_rsi",
+    color_mode: str = "beta_residual",
     sector_data: list[dict] | None = None,
     zscore_data: list[dict | None] | None = None,
     show_zscore: bool = False,
@@ -192,6 +192,7 @@ def build_rsi_scatter(
     beta_benchmark: str = "BTC",
     multi_tf_divergence: dict[str, dict] | None = None,
     multi_tf_rsi: dict[str, dict] | None = None,
+    show_timeframe: str | None = None,
     highlight_tf: str | None = None,
 ) -> go.Figure:
     """
@@ -361,8 +362,8 @@ def build_rsi_scatter(
     vol_mcap = [c["vol_mcap_ratio"] for c in coin_data]
     weekly_rsi = [c["weekly_rsi"] for c in coin_data]
 
-    # Determine X-axis RSI based on highlight_tf
-    # When a timeframe is highlighted, use that TF's RSI for the X-axis
+    # Determine X-axis RSI based on show_timeframe
+    # show_timeframe controls X-axis, highlight_tf controls ring highlighting
     TIMEFRAME_LABELS = {
         "1h": "1-Hour RSI",
         "4h": "4-Hour RSI",
@@ -372,14 +373,14 @@ def build_rsi_scatter(
         "1w": "Weekly RSI",
     }
 
-    if highlight_tf and multi_tf_rsi:
-        # Use highlighted timeframe's RSI
-        x_axis_title = TIMEFRAME_LABELS.get(highlight_tf, f"{highlight_tf} RSI")
+    if show_timeframe and multi_tf_rsi:
+        # Use selected timeframe's RSI for X-axis
+        x_axis_title = TIMEFRAME_LABELS.get(show_timeframe, f"{show_timeframe} RSI")
         daily_rsi = []
         for c in coin_data:
             coin_id = c.get("id")
             coin_tf_rsi = multi_tf_rsi.get(coin_id, {}) if coin_id else {}
-            tf_rsi = coin_tf_rsi.get(highlight_tf)
+            tf_rsi = coin_tf_rsi.get(show_timeframe)
             # Fall back to daily_rsi if timeframe RSI not available
             daily_rsi.append(tf_rsi if tf_rsi is not None else c["daily_rsi"])
     else:
