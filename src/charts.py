@@ -510,11 +510,9 @@ def build_rsi_scatter(
             "<extra></extra>"
         )
 
-    # Layer 0: Multi-timeframe divergence ring segments (added BEFORE markers)
-    # Ring segments show divergence status for 6 timeframes around each marker
-    # Uses PAPER coordinates - rings are positioned correctly but don't move with zoom
-    # (Plotly limitation: no custom SVG markers, and data coords scale with zoom)
-    # Timeframe order (clockwise from top): 1w, 3d, 1d, 12h, 4h, 1h
+    # Layer 0: Multi-timeframe divergence as concentric rings (added BEFORE markers)
+    # 6 concentric rings around each marker - inner to outer: 1w, 3d, 1d, 12h, 4h, 1h
+    # Uses scatter markers with circle-open - fixed pixel size that moves with zoom
     TIMEFRAME_ORDER = ["1w", "3d", "1d", "12h", "4h", "1h"]
     DIVERGENCE_COLORS = {
         "bullish": "#22c55e",  # Green
@@ -522,95 +520,65 @@ def build_rsi_scatter(
         "none": "#6b7280",     # Gray
     }
 
+    # Ring sizes in pixels (inner to outer): 1w=14, 3d=18, 1d=22, 12h=26, 4h=30, 1h=34
+    RING_SIZES = [14, 18, 22, 26, 30, 34]
+    RING_LINE_WIDTH = 2.5  # Thickness of each ring
+
     if multi_tf_divergence:
-        # Ring dimensions in paper coordinates (0-1 range)
-        # Paper coords ensure consistent ring size regardless of y position on log scale
-        ring_inner_radius = 0.012  # ~12px on a 1000px wide chart
-        ring_outer_radius = 0.022  # ~22px on a 1000px wide chart
+        # Add rings from outermost to innermost so inner rings draw on top
+        for tf_idx in range(5, -1, -1):  # 5, 4, 3, 2, 1, 0 (1h down to 1w)
+            tf = TIMEFRAME_ORDER[tf_idx]
+            ring_size = RING_SIZES[tf_idx]
 
-        # Calculate x and y ranges for coordinate conversion
-        x_data_min = 0
-        x_data_max = 100  # RSI range is 0-100
+            ring_x = []
+            ring_y = []
+            ring_colors = []
 
-        # Pre-calculate segment angles (same for all coins)
-        segment_angles = [get_segment_angles(seg_idx) for seg_idx in range(6)]
+            for i, c in enumerate(coin_data):
+                coin_id = c.get("id")
+                if not coin_id:
+                    continue
 
-        # Collect all ring segment shapes in a list (batch add for performance)
-        ring_shapes = []
+                cx = daily_rsi[i]
+                cy = vol_mcap[i]
 
-        for i, c in enumerate(coin_data):
-            coin_id = c.get("id")
-            if not coin_id:
-                continue
+                if cx is None or cy is None or cy <= 0:
+                    continue
 
-            # Get marker position in data coords
-            cx_data = daily_rsi[i]
-            cy_data = vol_mcap[i]
-
-            # Skip if position invalid
-            if cx_data is None or cy_data is None or cy_data <= 0:
-                continue
-
-            # Convert data coords to paper coords (0-1 range)
-            # X: linear scale, RSI 0-100 maps to paper 0-1
-            cx_paper = (cx_data - x_data_min) / (x_data_max - x_data_min)
-
-            # Y: log scale - need to convert through log space
-            cy_log = math.log10(cy_data)
-            cy_paper = (cy_log - log_min) / (log_max - log_min)
-
-            # Clamp to valid range (in case of edge cases)
-            cx_paper = max(0, min(1, cx_paper))
-            cy_paper = max(0, min(1, cy_paper))
-
-            # Get multi-TF divergence data for this coin
-            coin_mtf = multi_tf_divergence.get(coin_id, {})
-
-            # Draw 6 segments for each timeframe
-            for seg_idx, tf in enumerate(TIMEFRAME_ORDER):
-                # Get divergence type for this timeframe
+                # Get divergence data for this coin/timeframe
+                coin_mtf = multi_tf_divergence.get(coin_id, {})
                 tf_data = coin_mtf.get(tf, {})
                 div_type = tf_data.get("type", "none") if tf_data else "none"
                 base_color = DIVERGENCE_COLORS.get(div_type, DIVERGENCE_COLORS["none"])
 
-                # Determine segment opacity based on highlight mode
+                # Apply opacity for highlight mode
                 if highlight_tf is None or highlight_tf == tf:
-                    segment_opacity = 1.0
+                    color = base_color
                 else:
-                    segment_opacity = 0.3
+                    color = hex_to_rgba(base_color, 0.25)
 
-                # Apply opacity to fill color using rgba format
-                fill_color = hex_to_rgba(base_color, segment_opacity)
+                ring_x.append(cx)
+                ring_y.append(cy)
+                ring_colors.append(color)
 
-                # Get pre-calculated angles for this segment
-                start_angle, end_angle = segment_angles[seg_idx]
-
-                # Create arc path in paper coordinates
-                path = create_arc_segment_path(
-                    cx=cx_paper,
-                    cy=cy_paper,
-                    inner_radius_x=ring_inner_radius,
-                    outer_radius_x=ring_outer_radius,
-                    inner_radius_y=ring_inner_radius,
-                    outer_radius_y=ring_outer_radius,
-                    start_angle=start_angle,
-                    end_angle=end_angle,
+            # Add scatter trace for this timeframe's ring
+            if ring_x:
+                fig.add_trace(
+                    go.Scatter(
+                        x=ring_x,
+                        y=ring_y,
+                        mode="markers",
+                        marker={
+                            "size": ring_size,
+                            "symbol": "circle-open",
+                            "color": ring_colors,
+                            "line": {"width": RING_LINE_WIDTH, "color": ring_colors},
+                        },
+                        showlegend=False,
+                        hoverinfo="skip",
+                        name=f"Ring-{tf}",
+                    )
                 )
-
-                ring_shapes.append({
-                    "type": "path",
-                    "path": path,
-                    "fillcolor": fill_color,
-                    "line": {"width": 0.5, "color": "rgba(255,255,255,0.3)"},
-                    "layer": "below",
-                    "xref": "paper",
-                    "yref": "paper",
-                })
-
-        # Batch add all ring shapes at once (much faster than individual add_shape calls)
-        if ring_shapes:
-            existing_shapes = list(fig.layout.shapes) if fig.layout.shapes else []
-            fig.update_layout(shapes=existing_shapes + ring_shapes)
 
     # Layer 1: Outer rings for score >= 2 (thin ring)
     if score_2_indices:
@@ -779,7 +747,7 @@ def build_rsi_scatter(
     # Include ring explanation if multi_tf_divergence is enabled
     icon_legend = "● No div  + Bull  ◆ Bear  ○ Score 2+  ○○ Score 4"
     if multi_tf_divergence:
-        icon_legend += "  |  Ring: 6 TFs (1w→1h CW)"
+        icon_legend += "  |  Rings: 1w(in)→1h(out)"
     fig.add_annotation(
         x=0.99,
         y=0.99,
