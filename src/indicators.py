@@ -846,6 +846,101 @@ def calculate_price_acceleration(price_history: list[float]) -> dict | None:
     }
 
 
+def calculate_signal_persistence(
+    rsi_history: list[float], price_history: list[float], threshold: float = 1.5
+) -> dict | None:
+    """
+    Calculate signal persistence - tracking how long RSI has been leading price.
+
+    This identifies "coiled springs" where the RSI-leading-price pattern has
+    persisted over multiple periods, indicating building pressure.
+
+    Args:
+        rsi_history: List of RSI values (oldest to newest, at least 5 values)
+        price_history: List of price values (oldest to newest, at least 5 values)
+        threshold: Gap score threshold to consider RSI leading (default: 1.5)
+
+    Returns:
+        Dict with keys:
+        - current_gap: Current gap score (latest RSI_accel - Price_accel)
+        - persistence: Number of consecutive periods with positive gap (0-5 max)
+        - avg_gap: Average gap score over persistent periods
+        - interpretation: "strong_coiled" | "building" | "weak" | "none"
+        Returns None if insufficient data (< 5 values for either history).
+    """
+    if len(rsi_history) < 5 or len(price_history) < 5:
+        return None
+
+    # Calculate gap scores for recent periods
+    # We need at least 3 values to calculate acceleration, so we can compute
+    # gap scores for positions -5 to -1 (relative to end)
+    gap_scores = []
+
+    # For each period from -5 to -1, calculate the gap score at that point
+    # We need i, i-1, i-2 values for acceleration calculation
+    for offset in range(-5, 0):
+        # Get slices ending at this offset
+        # offset = -5 means we use indices ending at -5 (exclusive would be -4)
+        rsi_slice = rsi_history[offset - 2 : offset + 1] if offset != -1 else rsi_history[offset - 2:]
+        price_slice = price_history[offset - 2 : offset + 1] if offset != -1 else price_history[offset - 2:]
+
+        if len(rsi_slice) < 3 or len(price_slice) < 3:
+            continue
+
+        # Calculate RSI acceleration at this point
+        rsi_velocity = rsi_slice[-1] - rsi_slice[-2]
+        rsi_prev_velocity = rsi_slice[-2] - rsi_slice[-3]
+        rsi_accel = rsi_velocity - rsi_prev_velocity
+
+        # Calculate price acceleration at this point (as percentage)
+        if price_slice[-2] == 0 or price_slice[-3] == 0:
+            continue
+        price_velocity = (price_slice[-1] - price_slice[-2]) / price_slice[-2] * 100
+        price_prev_velocity = (price_slice[-2] - price_slice[-3]) / price_slice[-3] * 100
+        price_accel = price_velocity - price_prev_velocity
+
+        # Gap score: RSI acceleration - Price acceleration
+        # Positive = RSI leading price (bullish)
+        gap_score = rsi_accel - price_accel
+        gap_scores.append(gap_score)
+
+    if not gap_scores:
+        return None
+
+    # Current gap is the most recent gap score
+    current_gap = gap_scores[-1]
+
+    # Count consecutive periods (from most recent backward) where gap > threshold
+    persistence = 0
+    persistent_gaps = []
+    for gap in reversed(gap_scores):
+        if gap > threshold:
+            persistence += 1
+            persistent_gaps.append(gap)
+        else:
+            break
+
+    # Calculate average gap over persistent periods
+    avg_gap = sum(persistent_gaps) / len(persistent_gaps) if persistent_gaps else 0.0
+
+    # Determine interpretation
+    if persistence >= 3 and current_gap > 3:
+        interpretation = "strong_coiled"
+    elif persistence >= 2 or current_gap > 2:
+        interpretation = "building"
+    elif persistence >= 1 or current_gap > 1:
+        interpretation = "weak"
+    else:
+        interpretation = "none"
+
+    return {
+        "current_gap": round(current_gap, 4),
+        "persistence": persistence,
+        "avg_gap": round(avg_gap, 4),
+        "interpretation": interpretation,
+    }
+
+
 def calculate_multi_tf_divergence(
     hourly_data: dict | None,
     daily_data: dict | None,
