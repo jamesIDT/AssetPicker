@@ -804,6 +804,48 @@ def calculate_opportunity_score(factors: dict) -> dict:
     }
 
 
+def calculate_price_acceleration(price_history: list[float]) -> dict | None:
+    """
+    Calculate price velocity and acceleration (second derivative).
+
+    Args:
+        price_history: List of price values over time (oldest to newest, at least 3 values)
+
+    Returns:
+        Dict with keys:
+        - velocity: Price change rate as percent (current vs previous)
+        - acceleration: Change in velocity (current velocity - previous velocity)
+        - pct_change_3d: Total percent change over 3 periods
+        Returns None if insufficient data (< 3 values).
+    """
+    if len(price_history) < 3:
+        return None
+
+    # Velocity = percent change from previous period
+    if price_history[-2] == 0:
+        return None
+    velocity = (price_history[-1] - price_history[-2]) / price_history[-2] * 100
+
+    # Previous velocity = percent change from 2 periods ago to 1 period ago
+    if price_history[-3] == 0:
+        return None
+    prev_velocity = (price_history[-2] - price_history[-3]) / price_history[-3] * 100
+
+    # Acceleration = change in velocity
+    acceleration = velocity - prev_velocity
+
+    # 3-period percent change
+    if price_history[-3] == 0:
+        return None
+    pct_change_3d = (price_history[-1] - price_history[-3]) / price_history[-3] * 100
+
+    return {
+        "velocity": round(velocity, 4),
+        "acceleration": round(acceleration, 4),
+        "pct_change_3d": round(pct_change_3d, 4),
+    }
+
+
 def calculate_multi_tf_divergence(
     hourly_data: dict | None,
     daily_data: dict | None,
