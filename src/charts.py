@@ -6,6 +6,69 @@ from typing import Any
 import plotly.graph_objects as go
 
 
+def build_rsi_sparkline_svg(
+    rsi_history: list[float],
+    width: int = 80,
+    height: int = 40,
+    line_color: str = "#888",
+    line_width: float = 1.5,
+    fill_opacity: float = 0.15,
+    line_opacity: float = 0.35,
+) -> str:
+    """
+    Generate a minimal SVG sparkline for RSI history with filled area.
+
+    Args:
+        rsi_history: List of RSI values (0-100), oldest to newest
+        width: SVG width in pixels
+        height: SVG height in pixels
+        line_color: Stroke color for the line (also used for fill)
+        line_width: Stroke width for the line
+        fill_opacity: Opacity of the filled area (0-1)
+        line_opacity: Opacity of the line stroke (0-1)
+
+    Returns:
+        SVG string suitable for embedding in HTML
+    """
+    if not rsi_history or len(rsi_history) < 2:
+        return ""
+
+    # No padding - full width edge to edge
+    plot_width = width
+    plot_height = height
+
+    # RSI range is always fixed 0-100
+    rsi_min, rsi_max = 0, 100
+
+    # Calculate x step
+    n_points = len(rsi_history)
+    x_step = plot_width / (n_points - 1) if n_points > 1 else 0
+
+    # Build path points for line
+    line_points = []
+    for i, rsi in enumerate(rsi_history):
+        x = i * x_step
+        # Invert Y (SVG y=0 is top, we want high RSI at top)
+        y = (1 - (rsi - rsi_min) / (rsi_max - rsi_min)) * plot_height
+        line_points.append((x, y))
+
+    # Line path
+    line_path_d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in line_points)
+
+    # Filled area path (line + close to bottom)
+    fill_points = line_points.copy()
+    fill_points.append((width, height))  # Bottom right
+    fill_points.append((0, height))  # Bottom left
+    fill_path_d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in fill_points) + " Z"
+
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none">
+  <path d="{fill_path_d}" fill="{line_color}" fill-opacity="{fill_opacity}"/>
+  <path d="{line_path_d}" fill="none" stroke="{line_color}" stroke-width="{line_width}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="{line_opacity}"/>
+</svg>'''
+
+    return svg
+
+
 def hex_to_rgba(hex_color: str, opacity: float) -> str:
     """
     Convert hex color to rgba string.
@@ -380,7 +443,15 @@ def build_rsi_scatter(
         for c in coin_data:
             coin_id = c.get("id")
             coin_tf_rsi = multi_tf_rsi.get(coin_id, {}) if coin_id else {}
-            tf_rsi = coin_tf_rsi.get(show_timeframe)
+            tf_data = coin_tf_rsi.get(show_timeframe)
+            # tf_data may be a float (just RSI) or a dict with "rsi" and "history"
+            if tf_data is not None:
+                if isinstance(tf_data, dict):
+                    tf_rsi = tf_data.get("rsi")
+                else:
+                    tf_rsi = tf_data
+            else:
+                tf_rsi = None
             # Fall back to daily_rsi if timeframe RSI not available
             daily_rsi.append(tf_rsi if tf_rsi is not None else c["daily_rsi"])
     else:
@@ -480,16 +551,12 @@ def build_rsi_scatter(
         ])
 
     # Group coins by divergence type for efficient trace rendering
-    # Indices for each group
     neutral_indices = []
     bullish_indices = []
     bearish_indices = []
-    score_2_indices = []  # Score >= 2 (outer ring)
-    score_4_indices = []  # Score == 4 (bold outer ring)
 
     for i, d in enumerate(divergence_data):
         div_type = d.get("type", "none")
-        score = d.get("score", 0)
 
         if div_type == "bullish":
             bullish_indices.append(i)
@@ -497,11 +564,6 @@ def build_rsi_scatter(
             bearish_indices.append(i)
         else:
             neutral_indices.append(i)
-
-        if score >= 2:
-            score_2_indices.append(i)
-        if score == 4:
-            score_4_indices.append(i)
 
     # Helper to extract subset by indices
     def subset(indices: list[int], values: list) -> list:
@@ -607,49 +669,7 @@ def build_rsi_scatter(
                     )
                 )
 
-    # Layer 1: Outer rings for score >= 2 (thin ring)
-    if score_2_indices:
-        fig.add_trace(
-            go.Scatter(
-                x=subset(score_2_indices, daily_rsi),
-                y=subset(score_2_indices, vol_mcap),
-                mode="markers",
-                marker={
-                    "size": 18,
-                    "symbol": "circle-open",
-                    "color": subset(score_2_indices, color_values),
-                    "colorscale": colorscale,
-                    "cmin": cmin,
-                    "cmax": cmax,
-                    "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
-                },
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-
-    # Layer 2: Bold rings for score = 4 (overrides thin ring visually)
-    if score_4_indices:
-        fig.add_trace(
-            go.Scatter(
-                x=subset(score_4_indices, daily_rsi),
-                y=subset(score_4_indices, vol_mcap),
-                mode="markers",
-                marker={
-                    "size": 20,
-                    "symbol": "circle-open",
-                    "color": subset(score_4_indices, color_values),
-                    "colorscale": colorscale,
-                    "cmin": cmin,
-                    "cmax": cmax,
-                    "line": {"width": 3, "color": "rgba(255,255,255,0.6)"},
-                },
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-
-    # Layer 3: Neutral circles (no divergence)
+    # Layer 1: Neutral circles (no divergence)
     if neutral_indices:
         fig.add_trace(
             go.Scatter(
@@ -681,7 +701,7 @@ def build_rsi_scatter(
             )
         )
 
-    # Layer 4: Bullish divergence coins (now circles - divergence shown via rings)
+    # Layer 2: Bullish divergence coins (divergence shown via rings)
     if bullish_indices:
         fig.add_trace(
             go.Scatter(
@@ -713,7 +733,7 @@ def build_rsi_scatter(
             )
         )
 
-    # Layer 5: Bearish divergence coins (now circles - divergence shown via rings)
+    # Layer 3: Bearish divergence coins (divergence shown via rings)
     if bearish_indices:
         fig.add_trace(
             go.Scatter(
@@ -770,27 +790,24 @@ def build_rsi_scatter(
             )
         )
 
-    # Minimal corner legend for experienced users
-    # Include ring explanation if multi_tf_divergence is enabled
-    icon_legend = "○ Score 2+  ○○ Score 4"
+    # Minimal corner legend for divergence rings
     if multi_tf_divergence:
-        icon_legend += "  |  Rings: 1w(in)→1h(out) green=bull red=bear"
-    fig.add_annotation(
-        x=0.99,
-        y=0.99,
-        xref="paper",
-        yref="paper",
-        text=icon_legend,
-        showarrow=False,
-        font={"size": 9, "color": "#F6F8F7"},
-        align="right",
-        bgcolor="rgba(74, 79, 94, 0.85)",
-        bordercolor="rgba(246, 248, 247, 0.15)",
-        borderwidth=1,
-        borderpad=4,
-        xanchor="right",
-        yanchor="top",
-    )
+        fig.add_annotation(
+            x=0.99,
+            y=0.99,
+            xref="paper",
+            yref="paper",
+            text="Rings: 1w(in)→1h(out) 🟢bull 🔴bear",
+            showarrow=False,
+            font={"size": 9, "color": "#F6F8F7"},
+            align="right",
+            bgcolor="rgba(74, 79, 94, 0.85)",
+            bordercolor="rgba(246, 248, 247, 0.15)",
+            borderwidth=1,
+            borderpad=4,
+            xanchor="right",
+            yanchor="top",
+        )
 
     fig.update_layout(
         title="",
@@ -879,14 +896,26 @@ def build_acceleration_quadrant(
 
         if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
             tf_data = multi_tf_rsi[coin_id].get(timeframe)
-            if tf_data:
-                rsi_val = tf_data.get("rsi")
-                history = tf_data.get("history", [])
-                if len(history) >= 3:
-                    accel_result = calculate_rsi_acceleration(history)
-                    if accel_result:
-                        accel_val = accel_result.get("acceleration")
-                        interpretation = accel_result.get("interpretation", "stable")
+            if tf_data is not None:
+                # tf_data may be a float (just RSI) or a dict with "rsi" and "history"
+                if isinstance(tf_data, dict):
+                    rsi_val = tf_data.get("rsi")
+                    history = tf_data.get("history", [])
+                    if len(history) >= 3:
+                        accel_result = calculate_rsi_acceleration(history)
+                        if accel_result:
+                            accel_val = accel_result.get("acceleration")
+                            interpretation = accel_result.get("interpretation", "stable")
+                else:
+                    # tf_data is just the RSI value directly
+                    rsi_val = tf_data
+
+            # Fall back to daily acceleration if timeframe-specific not available
+            if accel_val is None:
+                accel = coin.get("acceleration")
+                if accel:
+                    accel_val = accel.get("acceleration")
+                    interpretation = accel.get("interpretation", "stable")
         else:
             # Fall back to daily (default behavior)
             rsi_val = coin.get("daily_rsi", 50)

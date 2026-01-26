@@ -1,6 +1,7 @@
 """Crypto RSI Screener - Main Streamlit application."""
 
 import asyncio
+import base64
 import json
 import logging
 from datetime import datetime
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_scatter
+from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_scatter, build_rsi_sparkline_svg
 from src.coingecko import CoinGeckoClient
 from src.data_store import (
     load_data,
@@ -633,6 +634,43 @@ st.markdown(
         max-height: calc(100vh - 50px) !important;
         overflow: auto !important;
     }
+
+    /* =================================================================
+       SECTOR FILTER BUTTONS
+       ================================================================= */
+    .sector-btn {
+        background: rgba(30, 30, 35, 0.6);
+        border-radius: 6px;
+        padding: 10px 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid transparent;
+    }
+
+    .sector-btn:hover {
+        background: rgba(50, 50, 58, 0.8);
+        transform: translateY(-1px);
+    }
+
+    .sector-btn.selected {
+        background: rgba(50, 50, 58, 0.9);
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+    }
+
+    .sector-btn .sector-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }
+
+    .sector-btn .sector-count {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #F6F8F7;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -789,8 +827,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         market_data = await client.get_coins_market_data(coin_ids)
         logger.info(f"[Refresh] Market data received: {len(market_data)} coins")
 
-        logger.info(f"[Refresh] Fetching 120-day history for {len(coin_ids)} coins...")
-        history = await client.get_coins_history(coin_ids, days=120)
+        logger.info(f"[Refresh] Fetching 365-day history for {len(coin_ids)} coins...")
+        history = await client.get_coins_history(coin_ids, days=365)
         logger.info(f"[Refresh] History received: {len(history)} coins")
 
         # Fetch hourly data (with caching)
@@ -817,6 +855,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     btc_weekly_rsi = None
     btc_returns: list[float] = []
     btc_daily_rsi: float | None = None
+    btc_weekly_rsi_history: list[float] = []
+    btc_daily_rsi_history: list[float] = []
 
     if "bitcoin" in history:
         btc_hist = history["bitcoin"]
@@ -848,6 +888,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     eth_weekly_rsi: float | None = None
     eth_regime: dict | None = None
     eth_daily_regime: dict | None = None
+    eth_weekly_rsi_history: list[float] = []
+    eth_daily_rsi_history: list[float] = []
 
     if "ethereum" in history:
         eth_hist = history["ethereum"]
@@ -881,8 +923,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     stablecoin_ids = {"tether", "usd-coin", "dai", "binance-usd", "true-usd", "frax", "paxos-standard"}
     excluded_ids = {"bitcoin", "ethereum"} | stablecoin_ids
 
-    # Collect altcoin returns with market caps for weighting
-    altcoin_data: list[tuple[str, list[float], float]] = []  # (coin_id, returns, market_cap)
+    # Collect altcoin returns with market caps for weighting (include timestamps for weekly aggregation)
+    altcoin_data: list[tuple[str, list[float], float, list[int]]] = []  # (coin_id, returns, market_cap, timestamps)
     for coin_id in coin_ids:
         if coin_id in excluded_ids:
             continue
@@ -893,16 +935,19 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         prices = hist.get("prices", [])
         mcap = market_lookup[coin_id].get("market_cap", 0)
 
-        # Require at least 30 days of price data for Total3 calculation
-        if len(prices) >= 31 and mcap > 0:
+        # Require at least 120 days of price data for Total3 calculation
+        # This ensures we have enough weekly data for RSI (15+ weeks needed)
+        if len(prices) >= 121 and mcap > 0:
             coin_returns_list = []
+            coin_timestamps = []
             for i in range(1, len(prices)):
                 prev_price = prices[i - 1][1]
                 curr_price = prices[i][1]
                 if prev_price > 0:
                     coin_returns_list.append((curr_price - prev_price) / prev_price)
-            if len(coin_returns_list) >= 30:
-                altcoin_data.append((coin_id, coin_returns_list, mcap))
+                    coin_timestamps.append(prices[i][0])  # timestamp of return day
+            if len(coin_returns_list) >= 120:
+                altcoin_data.append((coin_id, coin_returns_list, mcap, coin_timestamps))
 
     # Calculate market-cap weighted Total3 returns
     total3_returns: list[float] = []
@@ -910,6 +955,9 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     total3_weekly_rsi: float | None = None
     total3_regime: dict | None = None
     total3_daily_regime: dict | None = None
+    total3_rsi_history: list[float] = []
+    total3_weekly_rsi_history: list[float] = []
+    t3_weekly_closes_len = 0  # For debug
 
     # Debug: count altcoins that could be used
     altcoin_check_count = 0
@@ -929,40 +977,49 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
     if altcoin_data:
         # Find minimum return length across all altcoins
-        min_len = min(len(r) for _, r, _ in altcoin_data)
+        min_len = min(len(r) for _, r, _, _ in altcoin_data)
         t3_min_len = min_len
-        if min_len >= 30:
-            total_mcap = sum(mcap for _, _, mcap in altcoin_data)
+        if min_len >= 120:
+            total_mcap = sum(mcap for _, _, mcap, _ in altcoin_data)
+
+            # Get timestamps from first altcoin (they should all align)
+            _, _, _, reference_timestamps = altcoin_data[0]
+            # Use timestamps from the end to match min_len
+            total3_timestamps = reference_timestamps[-min_len:]
 
             # Calculate weighted average return for each day
             for day_idx in range(min_len):
                 weighted_return = 0.0
-                for _, returns, mcap in altcoin_data:
+                for _, returns, mcap, _ in altcoin_data:
                     # Use returns from the end (most recent)
                     idx = len(returns) - min_len + day_idx
                     weight = mcap / total_mcap
                     weighted_return += returns[idx] * weight
                 total3_returns.append(weighted_return)
 
-            # Calculate synthetic Total3 price series and RSI
+            # Calculate synthetic Total3 price series with timestamps
             # Start with price of 100 and apply returns
-            total3_prices = [100.0]
-            for ret in total3_returns:
-                total3_prices.append(total3_prices[-1] * (1 + ret))
+            total3_prices: list[tuple[int, float]] = []
+            price = 100.0
+            for i, ret in enumerate(total3_returns):
+                price = price * (1 + ret)
+                total3_prices.append((total3_timestamps[i], price))
             t3_prices_len = len(total3_prices)
 
+            # Extract just prices for daily RSI
+            total3_prices_only = [p for _, p in total3_prices]
+
             # Calculate Total3 daily RSI and regime
-            if len(total3_prices) >= 15:
-                total3_rsi_history = get_rsi_history(total3_prices)
+            if len(total3_prices_only) >= 15:
+                total3_rsi_history = get_rsi_history(total3_prices_only)
                 if total3_rsi_history:
                     total3_daily_rsi = total3_rsi_history[-1]
                     total3_daily_regime = detect_regime(total3_rsi_history)
 
-            # Calculate Total3 weekly RSI and regime
-            # Aggregate daily prices to weekly (every 7th value as weekly close)
-            # Need at least 15 weekly closes for RSI (14 period + 1), so ~105 daily prices
-            if len(total3_prices) >= 105:
-                total3_weekly_closes = [total3_prices[i] for i in range(6, len(total3_prices), 7)]
+            # Calculate Total3 weekly RSI and regime using proper weekly aggregation
+            total3_weekly_closes = aggregate_to_weekly(total3_prices)
+            t3_weekly_closes_len = len(total3_weekly_closes)
+            if len(total3_weekly_closes) >= 15:  # Need at least 15 for RSI (14 warmup + 1)
                 total3_weekly_rsi_history = get_rsi_history(total3_weekly_closes)
                 if total3_weekly_rsi_history:
                     total3_weekly_rsi = total3_weekly_rsi_history[-1]
@@ -1285,24 +1342,31 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             multi_tf_divergence_all[coin_id] = multi_div
 
     # Build market_regimes dict for 2x3 regime display (6 boxes)
+    # Weekly shows 52 weeks (1 year) of history, daily shows 60 days (2 months)
     market_regimes = {
         "btc": {
             "weekly_rsi": btc_weekly_rsi,
             "daily_rsi": btc_daily_rsi,
             "weekly_regime": btc_regime,
             "daily_regime": btc_daily_regime,
+            "weekly_history": btc_weekly_rsi_history[-52:] if btc_weekly_rsi_history else [],
+            "daily_history": btc_daily_rsi_history[-60:] if btc_daily_rsi_history else [],
         },
         "eth": {
             "weekly_rsi": eth_weekly_rsi,
             "daily_rsi": eth_daily_rsi,
             "weekly_regime": eth_regime,
             "daily_regime": eth_daily_regime,
+            "weekly_history": eth_weekly_rsi_history[-52:] if eth_weekly_rsi_history else [],
+            "daily_history": eth_daily_rsi_history[-60:] if eth_daily_rsi_history else [],
         },
         "total3": {
             "weekly_rsi": total3_weekly_rsi,
             "daily_rsi": total3_daily_rsi,
             "weekly_regime": total3_regime,
             "daily_regime": total3_daily_regime,
+            "weekly_history": total3_weekly_rsi_history[-52:] if total3_weekly_rsi_history else [],
+            "daily_history": total3_rsi_history[-60:] if total3_rsi_history else [],
         },
         "_debug": {
             "altcoins_available": altcoin_check_count,
@@ -1311,6 +1375,8 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             "altcoins_collected": len(altcoin_data),
             "min_return_len": t3_min_len,
             "total3_prices_len": t3_prices_len,
+            "t3_weekly_closes": t3_weekly_closes_len,
+            "t3_weekly_rsi_len": len(total3_weekly_rsi_history),
         },
     }
 
@@ -1482,8 +1548,8 @@ if st.session_state.coin_data is not None:
             "transition": ("⚖️", "Transition", "", "#FFB020"),
         }
 
-        def build_regime_box(label: str, rsi_val: float | None, regime: dict | None) -> str:
-            """Build a single regime box HTML."""
+        def build_regime_box(label: str, rsi_val: float | None, regime: dict | None, rsi_history: list[float] | None = None) -> str:
+            """Build a single regime box HTML with sparkline background."""
             combined = regime.get("combined", "transition") if regime else "transition"
             emoji, regime_label, momentum_label, color = regime_display_map.get(
                 combined, ("⚖️", "Transition", "", "#FFB020")
@@ -1492,16 +1558,47 @@ if st.session_state.coin_data is not None:
             # Combine regime and momentum on one line
             regime_momentum = f"{regime_label} : {momentum_label}" if momentum_label else regime_label
 
+            # Generate sparkline SVG if history available (with subtle opacity)
+            sparkline_bg = ""
+            if rsi_history and len(rsi_history) >= 2:
+                sparkline_svg = build_rsi_sparkline_svg(
+                    rsi_history,
+                    width=100,
+                    height=60,
+                    line_color=color,
+                    line_width=1.0,
+                    fill_opacity=0.08,
+                    line_opacity=0.20,
+                )
+                if sparkline_svg:
+                    # Encode SVG for use as background image
+                    svg_encoded = base64.b64encode(sparkline_svg.encode('utf-8')).decode('utf-8')
+                    sparkline_bg = f"url('data:image/svg+xml;base64,{svg_encoded}')"
+
+            # Build background style - sparkline fills entire box edge to edge
+            bg_style = f"background: rgba(30, 30, 35, 0.6);"
+            if sparkline_bg:
+                bg_style = f"background-color: rgba(30, 30, 35, 0.8); background-image: {sparkline_bg}; background-repeat: no-repeat; background-position: left bottom; background-size: 100% 100%;"
+
+            # Determine label color based on label text
+            if "BTC" in label:
+                lbl_color = "#F7931A"
+            elif "ETH" in label:
+                lbl_color = "#627EEA"
+            else:
+                lbl_color = "#9B59B6"
+
             return f"""
             <div style="
-                background: rgba(30, 30, 35, 0.6);
+                {bg_style}
                 border: 1px solid {color}40;
                 border-radius: 6px;
                 padding: 8px 10px;
                 text-align: center;
                 min-width: 80px;
+                position: relative;
             ">
-                <div style="font-size: 0.85rem; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">{label}</div>
+                <div style="font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; color: {lbl_color}; -webkit-text-fill-color: {lbl_color};">{label}</div>
                 <div style="font-size: 1.2rem; margin-bottom: 2px;">{emoji}</div>
                 <div style="font-size: 0.85rem; font-weight: 600; color: {color};">{regime_momentum}</div>
                 <div style="font-size: 1rem; color: #ccc; margin-top: 4px; padding-top: 6px; border-top: 1px solid #333; font-weight: 600;">{rsi_text}</div>
@@ -1521,13 +1618,36 @@ if st.session_state.coin_data is not None:
         ])
 
         if has_data:
-            # Build 6 boxes: top row = weekly, bottom row = daily
-            btc_weekly_box = build_regime_box("BTC 1W", btc_data.get("weekly_rsi"), btc_data.get("weekly_regime"))
-            eth_weekly_box = build_regime_box("ETH 1W", eth_data.get("weekly_rsi"), eth_data.get("weekly_regime"))
-            t3_weekly_box = build_regime_box("T3 1W", total3_data.get("weekly_rsi"), total3_data.get("weekly_regime"))
-            btc_daily_box = build_regime_box("BTC 1D", btc_data.get("daily_rsi"), btc_data.get("daily_regime"))
-            eth_daily_box = build_regime_box("ETH 1D", eth_data.get("daily_rsi"), eth_data.get("daily_regime"))
-            t3_daily_box = build_regime_box("T3 1D", total3_data.get("daily_rsi"), total3_data.get("daily_regime"))
+            # Get histories and align them to the same length (minimum across all)
+            btc_weekly_hist = btc_data.get("weekly_history", [])
+            eth_weekly_hist = eth_data.get("weekly_history", [])
+            alt_weekly_hist = total3_data.get("weekly_history", [])
+            btc_daily_hist = btc_data.get("daily_history", [])
+            eth_daily_hist = eth_data.get("daily_history", [])
+            alt_daily_hist = total3_data.get("daily_history", [])
+
+            # Align weekly histories to minimum length
+            weekly_lens = [len(h) for h in [btc_weekly_hist, eth_weekly_hist, alt_weekly_hist] if h]
+            if weekly_lens:
+                min_weekly = min(weekly_lens)
+                btc_weekly_hist = btc_weekly_hist[-min_weekly:] if btc_weekly_hist else []
+                eth_weekly_hist = eth_weekly_hist[-min_weekly:] if eth_weekly_hist else []
+                alt_weekly_hist = alt_weekly_hist[-min_weekly:] if alt_weekly_hist else []
+
+            # Align daily histories to minimum length
+            daily_lens = [len(h) for h in [btc_daily_hist, eth_daily_hist, alt_daily_hist] if h]
+            if daily_lens:
+                min_daily = min(daily_lens)
+                btc_daily_hist = btc_daily_hist[-min_daily:] if btc_daily_hist else []
+                eth_daily_hist = eth_daily_hist[-min_daily:] if eth_daily_hist else []
+                alt_daily_hist = alt_daily_hist[-min_daily:] if alt_daily_hist else []
+
+            btc_weekly_box = build_regime_box("BTC 1W", btc_data.get("weekly_rsi"), btc_data.get("weekly_regime"), btc_weekly_hist)
+            eth_weekly_box = build_regime_box("ETH 1W", eth_data.get("weekly_rsi"), eth_data.get("weekly_regime"), eth_weekly_hist)
+            t3_weekly_box = build_regime_box("ALT 1W", total3_data.get("weekly_rsi"), total3_data.get("weekly_regime"), alt_weekly_hist)
+            btc_daily_box = build_regime_box("BTC 1D", btc_data.get("daily_rsi"), btc_data.get("daily_regime"), btc_daily_hist)
+            eth_daily_box = build_regime_box("ETH 1D", eth_data.get("daily_rsi"), eth_data.get("daily_regime"), eth_daily_hist)
+            t3_daily_box = build_regime_box("ALT 1D", total3_data.get("daily_rsi"), total3_data.get("daily_regime"), alt_daily_hist)
 
             regime_html = f"""
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
@@ -1540,39 +1660,12 @@ if st.session_state.coin_data is not None:
             </div>
             """
 
-        # Build sector chips HTML with colors
-        sector_colors = {
-            "Majors": "#3b82f6",  # Blue
-            "DeFi": "#8b5cf6",    # Purple
-            "AI": "#10b981",      # Green
-            "DeSci": "#f59e0b",   # Amber
-        }
-        sector_order = ["Majors", "DeFi", "AI", "DeSci"]
-        sector_chips = []
-        for s in sector_order:
-            if s in sector_counts:
-                color = sector_colors.get(s, "#666")
-                chip = f'<div style="display: inline-flex; align-items: center; gap: 6px; background: {color}20; border: 1px solid {color}40; border-radius: 4px; padding: 4px 10px; margin: 3px;"><span style="color: {color}; font-size: 0.75rem; font-weight: 500;">{s}</span><span style="color: #ccc; font-size: 0.85rem; font-weight: 600;">{sector_counts[s]}</span></div>'
-                sector_chips.append(chip)
-
         # === THREE-COLUMN CONTROL STRIP ===
         ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1, 1, 1])
 
-        # Column 1: Filters
+        # Column 1: Filters (sector filter moved to Column 2)
         with ctrl_col1:
             st.markdown('<div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">Filters</div>', unsafe_allow_html=True)
-            selected = st.selectbox(
-                "Sector",
-                sector_options,
-                index=0,
-                key="sector_filter",
-                label_visibility="collapsed",
-            )
-            # Extract sector name (remove count suffix)
-            if selected == "All Sectors":
-                st.session_state.selected_sector = "All Sectors"
-            else:
-                st.session_state.selected_sector = selected.split(" (")[0]
 
             # Line 1: Beta Benchmark + Z-Score checkbox
             line1_col1, line1_col2 = st.columns([3, 1])
@@ -1593,7 +1686,8 @@ if st.session_state.coin_data is not None:
             # Line 2: Show Timeframe (controls X-axis)
             show_tf = st.radio(
                 "Show Timeframe",
-                ["1d", "1w", "3d", "12h", "4h", "1h"],
+                ["1h", "4h", "12h", "1d", "3d", "1w"],
+                index=3,  # Default to 1d
                 horizontal=True,
                 label_visibility="visible",
                 key="show_tf_radio",
@@ -1640,24 +1734,103 @@ if st.session_state.coin_data is not None:
             filtered_coin_data = st.session_state.coin_data
             filtered_divergence_data = st.session_state.divergence_data
 
-        # Column 2: Coverage stats
+        # Column 2: Asset Coverage as 2x2 clickable sector filter grid
         with ctrl_col2:
             total_coins = len(st.session_state.coin_data)
-            filtered_count = len(filtered_coin_data)
-            display_count = filtered_count if st.session_state.selected_sector != "All Sectors" else total_coins
+            current_sector = st.session_state.get("selected_sector", "All Sectors")
+            is_filtering = current_sector != "All Sectors"
 
-            st.markdown(f"""
-            <div style="text-align: center; padding: 4px 0;">
-                <div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;">Coverage</div>
-                <div style="display: flex; align-items: baseline; justify-content: center; gap: 6px;">
-                    <span style="font-size: 2.2rem; font-weight: 700; color: #F6F8F7; line-height: 1;">{display_count}</span>
-                    <span style="font-size: 0.9rem; color: #666;">coins</span>
-                </div>
-                <div style="display: flex; flex-wrap: wrap; justify-content: center; margin-top: 10px;">
-                    {''.join(sector_chips)}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Sector data with colors
+            sector_colors_map = {
+                "Majors": "#3b82f6",
+                "DeFi": "#8b5cf6",
+                "AI": "#10b981",
+                "DeSci": "#f59e0b",
+            }
+
+            # Header with hint or filter status
+            if is_filtering:
+                filter_color = sector_colors_map.get(current_sector, "#888")
+                header_html = f'''<div style="text-align: center; margin-bottom: 10px;">
+                    <div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em;">Asset Coverage</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #F6F8F7; line-height: 1.2;">{total_coins} <span style="font-size: 1rem; color: #888; font-weight: 400;">coins</span></div>
+                    <div style="font-size: 0.75rem; color: {filter_color}; margin-top: 4px;">Filtering: {current_sector} · <span style="color: #888; cursor: pointer;">click to clear</span></div>
+                </div>'''
+            else:
+                header_html = f'''<div style="text-align: center; margin-bottom: 10px;">
+                    <div style="font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em;">Asset Coverage</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #F6F8F7; line-height: 1.2;">{total_coins} <span style="font-size: 1rem; color: #888; font-weight: 400;">coins</span></div>
+                    <div style="font-size: 0.7rem; color: #666; margin-top: 4px;">Click to filter by sector</div>
+                </div>'''
+            st.markdown(header_html, unsafe_allow_html=True)
+
+            sectors = [
+                ("Majors", sector_counts.get("Majors", 0), "#3b82f6"),
+                ("DeFi", sector_counts.get("DeFi", 0), "#8b5cf6"),
+                ("AI", sector_counts.get("AI", 0), "#10b981"),
+                ("DeSci", sector_counts.get("DeSci", 0), "#f59e0b"),
+            ]
+
+            # Create 2x2 grid of sector buttons
+            row1_col1, row1_col2 = st.columns(2, gap="small")
+            row2_col1, row2_col2 = st.columns(2, gap="small")
+            grid_cols = [row1_col1, row1_col2, row2_col1, row2_col2]
+
+            for i, (name, count, color) in enumerate(sectors):
+                with grid_cols[i]:
+                    is_selected = current_sector == name
+                    # Use type="primary" for selected button to make it visually distinct
+                    btn_type = "primary" if is_selected else "secondary"
+                    btn_label = f"{name}\n{count}"
+                    if st.button(btn_label, key=f"sector_btn_{name}", use_container_width=True, type=btn_type):
+                        if current_sector == name:
+                            st.session_state.selected_sector = "All Sectors"
+                        else:
+                            st.session_state.selected_sector = name
+                        st.rerun()
+
+            # Override primary button color based on selected sector
+            if is_filtering:
+                color = sector_colors_map.get(current_sector, "#888")
+                st.markdown(f'''<style>
+                    /* Selected sector button - use sector color */
+                    [data-testid="stButton"] button[kind="primary"] {{
+                        background: linear-gradient(135deg, {color}90 0%, {color} 100%) !important;
+                        border: 2px solid {color} !important;
+                        box-shadow: 0 0 15px {color}60 !important;
+                        color: #fff !important;
+                    }}
+                    [data-testid="stButton"] button[kind="primary"]:hover {{
+                        background: linear-gradient(135deg, {color} 0%, {color}dd 100%) !important;
+                        border-color: {color} !important;
+                    }}
+                </style>''', unsafe_allow_html=True)
+
+            # Style for non-selected (secondary) buttons
+            st.markdown('''<style>
+                /* Sector filter buttons - secondary style */
+                [data-testid="stButton"] button[kind="secondary"] {
+                    background: rgba(30, 30, 35, 0.6) !important;
+                    border: 1px solid rgba(150, 150, 160, 0.3) !important;
+                    border-radius: 6px !important;
+                    min-height: 65px !important;
+                    white-space: pre-line !important;
+                    line-height: 1.4 !important;
+                    color: #aaa !important;
+                }
+                [data-testid="stButton"] button[kind="secondary"]:hover {
+                    background: rgba(50, 50, 60, 0.8) !important;
+                    border-color: rgba(180, 180, 190, 0.5) !important;
+                    color: #fff !important;
+                }
+                /* Primary button base */
+                [data-testid="stButton"] button[kind="primary"] {
+                    border-radius: 6px !important;
+                    min-height: 65px !important;
+                    white-space: pre-line !important;
+                    line-height: 1.4 !important;
+                }
+            </style>''', unsafe_allow_html=True)
 
         # Column 3: Market Regime
         with ctrl_col3:
