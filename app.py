@@ -2,7 +2,12 @@
 
 import asyncio
 import json
+import logging
 from datetime import datetime
+
+# Configure logging for progress tracking
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -780,18 +785,26 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     """
     async with CoinGeckoClient() as client:
         # Fetch market data and history concurrently
+        logger.info(f"[Refresh] Fetching market data for {len(coin_ids)} coins...")
         market_data = await client.get_coins_market_data(coin_ids)
+        logger.info(f"[Refresh] Market data received: {len(market_data)} coins")
+
+        logger.info(f"[Refresh] Fetching 120-day history for {len(coin_ids)} coins...")
         history = await client.get_coins_history(coin_ids, days=120)
+        logger.info(f"[Refresh] History received: {len(history)} coins")
 
         # Fetch hourly data (with caching)
         hourly_history = None
         if is_hourly_cache_valid():
+            logger.info("[Refresh] Using cached hourly data")
             hourly_cached = load_hourly_data()
             if hourly_cached:
                 hourly_history = hourly_cached.get("hourly_history")
         else:
             # Fetch fresh hourly data
+            logger.info(f"[Refresh] Fetching 90-day hourly data for {len(coin_ids)} coins (this is slow)...")
             hourly_history = await client.get_coins_hourly_history(coin_ids, days=90)
+            logger.info(f"[Refresh] Hourly data received: {len(hourly_history)} coins")
             # Save to cache
             save_hourly_data(hourly_history, datetime.now())
 
@@ -1301,6 +1314,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         },
     }
 
+    logger.info(f"[Refresh] Complete! {len(result)} coins processed, {failed_count} failed")
     return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi_all, multi_tf_divergence_all, market_regimes
 
 
