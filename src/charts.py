@@ -1205,6 +1205,7 @@ def build_divergence_matrix(
 def build_signal_persistence_quadrant(
     coins: list[dict[str, Any]],
     height: int = 450,
+    highlight_coin: str | None = None,
 ) -> go.Figure | None:
     """
     Build scatter plot showing Signal Strength vs Persistence for coiled spring detection.
@@ -1346,6 +1347,30 @@ def build_signal_persistence_quadrant(
         "line": {"color": "rgba(246,248,247,0.20)", "width": 1.5, "dash": "dot"}
     })
 
+    # Handle highlight_coin: adjust sizes and opacity
+    if highlight_coin:
+        # Highlighted coin gets 1.5x size, others get reduced opacity
+        adjusted_sizes = []
+        marker_opacities = []
+        marker_line_widths = []
+        marker_line_colors = []
+        for i, sym in enumerate(symbols):
+            if sym == highlight_coin:
+                adjusted_sizes.append(marker_sizes[i] * 1.5)
+                marker_opacities.append(1.0)
+                marker_line_widths.append(3)
+                marker_line_colors.append("#FFB020")  # Orange glow
+            else:
+                adjusted_sizes.append(marker_sizes[i])
+                marker_opacities.append(0.4)
+                marker_line_widths.append(1)
+                marker_line_colors.append("rgba(255,255,255,0.4)")
+    else:
+        adjusted_sizes = marker_sizes
+        marker_opacities = [0.85] * len(symbols)
+        marker_line_widths = [1] * len(symbols)
+        marker_line_colors = ["rgba(255,255,255,0.4)"] * len(symbols)
+
     # Add scatter trace with color by gap score
     fig.add_trace(
         go.Scatter(
@@ -1357,11 +1382,12 @@ def build_signal_persistence_quadrant(
             textfont={"size": 9, "color": "#F6F8F7"},
             customdata=customdata,
             marker={
-                "size": marker_sizes,
+                "size": adjusted_sizes,
                 "color": gap_scores,
                 "colorscale": "RdYlGn",  # Positive gap (RSI leading) = green
                 "cmin": -5,
                 "cmax": 10,
+                "opacity": marker_opacities,
                 "colorbar": {
                     "title": "Gap Score",
                     "tickvals": [-5, 0, 5, 10],
@@ -1369,7 +1395,7 @@ def build_signal_persistence_quadrant(
                     "tickfont": {"color": "#F6F8F7"},
                     "title_font": {"color": "#F6F8F7"},
                 },
-                "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
+                "line": {"width": marker_line_widths, "color": marker_line_colors},
             },
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"
@@ -1438,6 +1464,7 @@ def build_rsi_price_quadrant(
     timeframe: str | None = None,
     multi_tf_rsi: dict[str, dict] | None = None,
     price_history_map: dict[str, list[float]] | None = None,
+    highlight_coin: str | None = None,
 ) -> go.Figure | None:
     """
     Build scatter plot showing RSI acceleration vs Price acceleration for predictive signals.
@@ -1632,6 +1659,30 @@ def build_rsi_price_quadrant(
         "line": {"color": "rgba(182, 154, 90, 0.5)", "width": 2, "dash": "dash"}
     })
 
+    # Handle highlight_coin: adjust sizes and opacity
+    base_size = 12
+    if highlight_coin:
+        adjusted_sizes = []
+        marker_opacities = []
+        marker_line_widths = []
+        marker_line_colors = []
+        for sym in symbols:
+            if sym == highlight_coin:
+                adjusted_sizes.append(base_size * 1.5)
+                marker_opacities.append(1.0)
+                marker_line_widths.append(3)
+                marker_line_colors.append("#FFB020")  # Orange glow
+            else:
+                adjusted_sizes.append(base_size)
+                marker_opacities.append(0.4)
+                marker_line_widths.append(1)
+                marker_line_colors.append("rgba(255,255,255,0.4)")
+    else:
+        adjusted_sizes = [base_size] * len(symbols)
+        marker_opacities = [0.85] * len(symbols)
+        marker_line_widths = [1] * len(symbols)
+        marker_line_colors = ["rgba(255,255,255,0.4)"] * len(symbols)
+
     # Add scatter trace with color by gap score
     fig.add_trace(
         go.Scatter(
@@ -1643,11 +1694,12 @@ def build_rsi_price_quadrant(
             textfont={"size": 9, "color": "#F6F8F7"},
             customdata=customdata,
             marker={
-                "size": 12,
+                "size": adjusted_sizes,
                 "color": gap_scores,
                 "colorscale": "RdYlGn",  # Positive gap (RSI leading) = green
                 "cmin": -10,
                 "cmax": 10,
+                "opacity": marker_opacities,
                 "colorbar": {
                     "title": "Gap Score",
                     "tickvals": [-10, -5, 0, 5, 10],
@@ -1655,7 +1707,7 @@ def build_rsi_price_quadrant(
                     "tickfont": {"color": "#F6F8F7"},
                     "title_font": {"color": "#F6F8F7"},
                 },
-                "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
+                "line": {"width": marker_line_widths, "color": marker_line_colors},
             },
             hovertemplate=(
                 "<b>%{customdata[0]}</b><br>"

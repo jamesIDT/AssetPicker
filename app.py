@@ -713,6 +713,8 @@ if "highlight_tf" not in st.session_state:
     st.session_state.highlight_tf = None
 if "show_timeframe" not in st.session_state:
     st.session_state.show_timeframe = None
+if "highlight_coin" not in st.session_state:
+    st.session_state.highlight_coin = None
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -2001,11 +2003,24 @@ if st.session_state.coin_data is not None:
             else:
                 st.info("Acceleration data requires price history. Refresh to load.")
 
-        # Section Header: Predictive Signals
-        st.markdown(
-            '<div class="section-header">PREDICTIVE SIGNALS — RSI vs PRICE MOMENTUM</div>',
-            unsafe_allow_html=True,
-        )
+        # Section Header: Predictive Signals with coin highlight selector
+        header_col, selector_col = st.columns([3, 1])
+        with header_col:
+            st.markdown(
+                '<div class="section-header">PREDICTIVE SIGNALS — RSI vs PRICE MOMENTUM</div>',
+                unsafe_allow_html=True,
+            )
+        with selector_col:
+            # Build list of coin symbols for highlight dropdown
+            coin_symbols = sorted([c.get("symbol", "?") for c in filtered_coin_data if c.get("symbol")])
+            highlight_options = ["None"] + coin_symbols
+            selected_highlight = st.selectbox(
+                "Highlight Coin",
+                highlight_options,
+                key="coin_highlight_select",
+                label_visibility="collapsed",
+            )
+            st.session_state.highlight_coin = None if selected_highlight == "None" else selected_highlight
 
         pred_col1, pred_col2 = st.columns(2)
 
@@ -2024,6 +2039,7 @@ if st.session_state.coin_data is not None:
                 timeframe=st.session_state.get("show_timeframe"),
                 multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
                 price_history_map=price_history_map,
+                highlight_coin=st.session_state.highlight_coin,
             )
             if rsi_price_fig:
                 st.plotly_chart(
@@ -2039,6 +2055,7 @@ if st.session_state.coin_data is not None:
             persistence_fig = build_signal_persistence_quadrant(
                 filtered_coin_data,
                 height=450,
+                highlight_coin=st.session_state.highlight_coin,
             )
             if persistence_fig:
                 st.plotly_chart(
@@ -2048,6 +2065,79 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Signal persistence requires RSI and price history.")
+
+        # About to Pop - Ranked Signal List
+        st.markdown(
+            '<div class="bordered-panel"><div class="panel-title">About to Pop — Ranked Signals</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Build ranked signal data from coins with signal_persistence
+        signal_coins = []
+        for coin in filtered_coin_data:
+            persistence_data = coin.get("signal_persistence")
+            if persistence_data and persistence_data.get("interpretation") != "none":
+                current_gap = persistence_data.get("current_gap", 0)
+                persistence = persistence_data.get("persistence", 0)
+                interpretation = persistence_data.get("interpretation", "none")
+                # Composite score: (persistence * 2) + current_gap
+                composite_score = (persistence * 2) + current_gap
+                signal_coins.append({
+                    "symbol": coin.get("symbol", "?"),
+                    "gap_score": current_gap,
+                    "persistence": persistence,
+                    "interpretation": interpretation,
+                    "score": composite_score,
+                })
+
+        if signal_coins:
+            import pandas as pd
+
+            # Sort by composite score descending
+            signal_coins.sort(key=lambda x: x["score"], reverse=True)
+
+            # Show top 10 by default
+            show_all_signals = st.checkbox("Show all signals", value=False, key="show_all_signals")
+            display_coins = signal_coins if show_all_signals else signal_coins[:10]
+
+            # Map interpretation to emoji
+            emoji_map = {
+                "strong_coiled": "🔥",
+                "building": "📈",
+                "weak": "💤",
+            }
+
+            # Build dataframe
+            ranked_data = []
+            for i, coin in enumerate(display_coins):
+                ranked_data.append({
+                    "Rank": i + 1,
+                    "Symbol": coin["symbol"],
+                    "Gap": round(coin["gap_score"], 1),
+                    "Persist": coin["persistence"],
+                    "Signal": emoji_map.get(coin["interpretation"], "⚪"),
+                    "Score": round(coin["score"], 1),
+                })
+
+            df_signals = pd.DataFrame(ranked_data)
+            st.dataframe(
+                df_signals,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Rank": st.column_config.NumberColumn("Rank", width="small"),
+                    "Symbol": st.column_config.TextColumn("Symbol", width="medium"),
+                    "Gap": st.column_config.NumberColumn("Gap", width="small", format="%.1f"),
+                    "Persist": st.column_config.NumberColumn("Persist", width="small"),
+                    "Signal": st.column_config.TextColumn("Signal", width="small"),
+                    "Score": st.column_config.NumberColumn("Score", width="small", format="%.1f"),
+                },
+            )
+            st.caption("Score = (Persistence × 2) + Gap Score | 🔥 Strong | 📈 Building | 💤 Weak")
+        else:
+            st.info("No 'about to pop' signals detected. Refresh data to calculate.")
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # Section Header: Divergence Analysis
         st.markdown(
