@@ -14,7 +14,7 @@ None (crypto/trading domain knowledge embedded in feature specs)
 - ✅ **v2.0 Advanced Screening** - Phases 7-14 (shipped 2026-01-24)
 - ✅ **v3.0 UX Dashboard Redesign** - Phases 15-20 (shipped 2026-01-24)
 - ✅ **v4.0 Multi-Timeframe Divergence** - Phases 21-26 (shipped 2026-01-25)
-- 🚧 **v5.0 Predictive Signal Detection** - Phases 27-29 (in progress)
+- ✅ **v5.0 Predictive Signal Detection** - Phases 27-29 (shipped 2026-01-27)
 
 ## Phases
 
@@ -253,7 +253,7 @@ Plans:
 
 ---
 
-### 🚧 v5.0 Predictive Signal Detection (IN PROGRESS)
+### ✅ v5.0 Predictive Signal Detection (SHIPPED 2026-01-27)
 
 **Milestone Goal:** Add two new predictive quadrants that surface "about to pop" signals - coins where RSI is accelerating but price hasn't caught up yet. Track signal persistence to identify coiled springs with building pressure.
 
@@ -291,18 +291,21 @@ Key deliverables:
 Plans:
 - [x] 28-01: Signal persistence calc + persistence quadrant + dashboard integration
 
-#### Phase 29: Integration & Polish
+#### Phase 29: Integration & Polish (COMPLETE)
 
 **Goal**: Integrate both quadrants into layout, add ranked signal list, polish
 **Depends on**: Phase 27, 28
 **Research**: Unlikely (layout patterns established)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Key deliverables:
 - Row 2 layout below existing quadrants
 - Ranked "about to pop" signal list
 - Consistent theming with existing quadrants
 - Cross-quadrant interaction (click to highlight across all)
+
+Plans:
+- [x] 29-01: Ranked signal list + cross-quadrant coin highlight + v5.0 finalization
 
 ---
 
@@ -341,4 +344,4 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 26. Polish & Performance | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 27. RSI-Price Accel Quadrant | v5.0 | 1/1 | Complete | 2026-01-26 |
 | 28. Signal Persistence Quadrant | v5.0 | 1/1 | Complete | 2026-01-26 |
-| 29. Integration & Polish | v5.0 | 0/? | Not started | - |
+| 29. Integration & Polish | v5.0 | 1/1 | Complete | 2026-01-27 |

@@ -847,7 +847,7 @@ def calculate_price_acceleration(price_history: list[float]) -> dict | None:
 
 
 def calculate_signal_persistence(
-    rsi_history: list[float], price_history: list[float], threshold: float = 1.5
+    rsi_history: list[float], price_history: list[float], threshold: float = 0.5
 ) -> dict | None:
     """
     Calculate signal persistence - tracking how long RSI has been leading price.
@@ -858,12 +858,12 @@ def calculate_signal_persistence(
     Args:
         rsi_history: List of RSI values (oldest to newest, at least 5 values)
         price_history: List of price values (oldest to newest, at least 5 values)
-        threshold: Gap score threshold to consider RSI leading (default: 1.5)
+        threshold: Gap score threshold to consider RSI leading (default: 0.5)
 
     Returns:
         Dict with keys:
         - current_gap: Current gap score (latest RSI_accel - Price_accel)
-        - persistence: Number of consecutive periods with positive gap (0-5 max)
+        - persistence: Total periods (out of 5) with gap > threshold (0-5)
         - avg_gap: Average gap score over persistent periods
         - interpretation: "strong_coiled" | "building" | "weak" | "none"
         Returns None if insufficient data (< 5 values for either history).
@@ -910,25 +910,25 @@ def calculate_signal_persistence(
     # Current gap is the most recent gap score
     current_gap = gap_scores[-1]
 
-    # Count consecutive periods (from most recent backward) where gap > threshold
+    # Count total periods (out of last 5) where gap > threshold
+    # More forgiving than consecutive - allows temporary dips
     persistence = 0
     persistent_gaps = []
-    for gap in reversed(gap_scores):
+    for gap in gap_scores:
         if gap > threshold:
             persistence += 1
             persistent_gaps.append(gap)
-        else:
-            break
 
     # Calculate average gap over persistent periods
     avg_gap = sum(persistent_gaps) / len(persistent_gaps) if persistent_gaps else 0.0
 
-    # Determine interpretation
-    if persistence >= 3 and current_gap > 3:
+    # Determine interpretation based on total count (0-5 periods)
+    # With lower threshold (0.5) and total count, we expect more spread
+    if persistence >= 4 and current_gap > 2:
         interpretation = "strong_coiled"
-    elif persistence >= 2 or current_gap > 2:
+    elif persistence >= 3 or current_gap > 2:
         interpretation = "building"
-    elif persistence >= 1 or current_gap > 1:
+    elif persistence >= 2 or current_gap > 0.5:
         interpretation = "weak"
     else:
         interpretation = "none"
