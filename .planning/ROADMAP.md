@@ -259,12 +259,12 @@ Plans:
 
 **Context:** .planning/phases/27-predictive-signal-quadrants/27-CONTEXT.md
 
-#### Phase 27: RSI-Price Acceleration Quadrant
+#### Phase 27: RSI-Price Acceleration Quadrant (COMPLETE)
 
 **Goal**: New quadrant plotting RSI acceleration vs price acceleration with parity diagonal
 **Depends on**: v4.0 complete
 **Research**: Likely (price acceleration calculation approach)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Key deliverables:
 - Price acceleration calculation (rate of price change momentum)
@@ -272,18 +272,24 @@ Key deliverables:
 - Distance from diagonal = signal strength
 - Visual urgency cues for strongest signals
 
-#### Phase 28: Signal Persistence Quadrant
+Plans:
+- [x] 27-01: Price acceleration calc + RSI-Price quadrant + dashboard integration
+
+#### Phase 28: Signal Persistence Quadrant (COMPLETE)
 
 **Goal**: Second quadrant showing signal strength vs persistence duration
 **Depends on**: Phase 27
 **Research**: Unlikely (builds on Phase 27 calculations)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Key deliverables:
 - Persistence tracking (periods in divergent state)
 - Signal strength vs persistence scatter
 - Top-right highlighting for mature strong signals
 - Fresh vs mature signal visual distinction
+
+Plans:
+- [x] 28-01: Signal persistence calc + persistence quadrant + dashboard integration
 
 #### Phase 29: Integration & Polish
 
@@ -333,6 +339,6 @@ Phases execute in numeric order: 7 → 8 → 9 → 10 → 11 → 12 → 13 → 1
 | 24. Timeframe Highlight | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 25. Divergence Matrix | v4.0 | 1/1 | Complete | 2026-01-25 |
 | 26. Polish & Performance | v4.0 | 1/1 | Complete | 2026-01-25 |
-| 27. RSI-Price Accel Quadrant | v5.0 | 0/? | Not started | - |
-| 28. Signal Persistence Quadrant | v5.0 | 0/? | Not started | - |
+| 27. RSI-Price Accel Quadrant | v5.0 | 1/1 | Complete | 2026-01-26 |
+| 28. Signal Persistence Quadrant | v5.0 | 1/1 | Complete | 2026-01-26 |
 | 29. Integration & Polish | v5.0 | 0/? | Not started | - |
