@@ -1202,6 +1202,236 @@ def build_divergence_matrix(
     return matrix_data, column_order
 
 
+def build_signal_persistence_quadrant(
+    coins: list[dict[str, Any]],
+    height: int = 450,
+) -> go.Figure | None:
+    """
+    Build scatter plot showing Signal Strength vs Persistence for coiled spring detection.
+
+    This chart surfaces "mature coiled springs" - coins where the RSI-leading-price
+    pattern has persisted over multiple periods, indicating sustained building pressure.
+
+    Quadrants:
+    - Top-Right (Gap > 2, Persistence >= 2): "Mature Signal" - BEST (green) - high gap, sustained
+    - Bottom-Right (Gap > 2, Persistence < 2): "Fresh Signal" (blue) - high gap, just started
+    - Top-Left (Gap <= 2, Persistence >= 2): "Fading" (orange) - was building, now weakening
+    - Bottom-Left (Gap <= 2, Persistence < 2): "No Signal" (gray) - no meaningful pattern
+
+    Args:
+        coins: List of coin dicts with keys:
+            - symbol: Coin symbol (e.g., "BTC")
+            - signal_persistence: Dict from calculate_signal_persistence with:
+                - current_gap: Gap score (RSI_accel - Price_accel)
+                - persistence: Number of consecutive periods with positive gap
+                - interpretation: "strong_coiled" | "building" | "weak" | "none"
+        height: Chart height in pixels (default 450)
+
+    Returns:
+        Plotly Figure object with the quadrant scatter plot, or None if no valid data
+    """
+    fig = go.Figure()
+
+    # Filter coins with signal_persistence data
+    valid_coins = []
+    for coin in coins:
+        symbol = coin.get("symbol", "?")
+        persistence_data = coin.get("signal_persistence")
+
+        if persistence_data is None:
+            continue
+
+        current_gap = persistence_data.get("current_gap")
+        persistence = persistence_data.get("persistence")
+        interpretation = persistence_data.get("interpretation", "none")
+
+        if current_gap is not None and persistence is not None:
+            valid_coins.append({
+                "symbol": symbol,
+                "current_gap": current_gap,
+                "persistence": persistence,
+                "interpretation": interpretation,
+                "avg_gap": persistence_data.get("avg_gap", 0),
+            })
+
+    if not valid_coins:
+        fig.update_layout(
+            title="Signal Persistence Quadrant",
+            xaxis_title="Signal Strength (Gap Score)",
+            yaxis_title="Persistence (Periods)",
+            annotations=[
+                {
+                    "text": "No signal persistence data available",
+                    "xref": "paper",
+                    "yref": "paper",
+                    "x": 0.5,
+                    "y": 0.5,
+                    "showarrow": False,
+                    "font": {"size": 16, "color": "#F6F8F7"},
+                },
+            ],
+            paper_bgcolor="#4A4F5E",
+            plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        )
+        return fig
+
+    # Extract data for plotting
+    symbols = [c["symbol"] for c in valid_coins]
+    gap_scores = [c["current_gap"] for c in valid_coins]
+    persistence_values = [c["persistence"] for c in valid_coins]
+
+    # Calculate marker sizes - larger for more persistent signals
+    marker_sizes = [10 + (c["persistence"] * 2) for c in valid_coins]
+
+    # Build customdata for tooltips
+    customdata = []
+    for c in valid_coins:
+        customdata.append([
+            c["symbol"],
+            c["current_gap"],
+            c["persistence"],
+            c["avg_gap"],
+            c["interpretation"],
+        ])
+
+    # Collect all shapes for batch update (performance optimization)
+    shapes = []
+
+    # X-axis range: -5 to 15 to accommodate typical gap scores
+    x_min, x_max = -5, 15
+    # Y-axis range: 0 to 6 for 0-5+ periods persistence
+    y_min, y_max = 0, 6
+
+    # Quadrant threshold values
+    gap_threshold = 2  # X threshold for signal strength
+    persistence_threshold = 2  # Y threshold for persistence
+
+    # Quadrant background shading
+    # Top-Right (Gap > 2, Persistence >= 2): "Mature Signal" - green tint (BEST)
+    shapes.append({
+        "type": "rect", "x0": gap_threshold, "x1": x_max,
+        "y0": persistence_threshold, "y1": y_max,
+        "fillcolor": "rgba(76, 175, 80, 0.18)", "line_width": 0, "layer": "below"
+    })
+    # Bottom-Right (Gap > 2, Persistence < 2): "Fresh Signal" - blue tint
+    shapes.append({
+        "type": "rect", "x0": gap_threshold, "x1": x_max,
+        "y0": y_min, "y1": persistence_threshold,
+        "fillcolor": "rgba(33, 150, 243, 0.12)", "line_width": 0, "layer": "below"
+    })
+    # Top-Left (Gap <= 2, Persistence >= 2): "Fading" - orange tint
+    shapes.append({
+        "type": "rect", "x0": x_min, "x1": gap_threshold,
+        "y0": persistence_threshold, "y1": y_max,
+        "fillcolor": "rgba(255, 152, 0, 0.12)", "line_width": 0, "layer": "below"
+    })
+    # Bottom-Left (Gap <= 2, Persistence < 2): "No Signal" - subtle gray
+    shapes.append({
+        "type": "rect", "x0": x_min, "x1": gap_threshold,
+        "y0": y_min, "y1": persistence_threshold,
+        "fillcolor": "rgba(158, 158, 158, 0.08)", "line_width": 0, "layer": "below"
+    })
+
+    # Reference lines (cream color for dark theme)
+    # Vertical line at x=2 (gap threshold)
+    shapes.append({
+        "type": "line", "x0": gap_threshold, "x1": gap_threshold,
+        "y0": y_min, "y1": y_max,
+        "line": {"color": "rgba(246,248,247,0.20)", "width": 1.5, "dash": "dot"}
+    })
+    # Horizontal line at y=2 (persistence threshold)
+    shapes.append({
+        "type": "line", "x0": x_min, "x1": x_max,
+        "y0": persistence_threshold, "y1": persistence_threshold,
+        "line": {"color": "rgba(246,248,247,0.20)", "width": 1.5, "dash": "dot"}
+    })
+
+    # Add scatter trace with color by gap score
+    fig.add_trace(
+        go.Scatter(
+            x=gap_scores,
+            y=persistence_values,
+            mode="markers+text",
+            text=symbols,
+            textposition="top center",
+            textfont={"size": 9, "color": "#F6F8F7"},
+            customdata=customdata,
+            marker={
+                "size": marker_sizes,
+                "color": gap_scores,
+                "colorscale": "RdYlGn",  # Positive gap (RSI leading) = green
+                "cmin": -5,
+                "cmax": 10,
+                "colorbar": {
+                    "title": "Gap Score",
+                    "tickvals": [-5, 0, 5, 10],
+                    "len": 0.8,
+                    "tickfont": {"color": "#F6F8F7"},
+                    "title_font": {"color": "#F6F8F7"},
+                },
+                "line": {"width": 1, "color": "rgba(255,255,255,0.4)"},
+            },
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                "Gap Score: %{customdata[1]:+.2f}<br>"
+                "Persistence: %{customdata[2]} periods<br>"
+                "Avg Gap: %{customdata[3]:+.2f}<br>"
+                "Status: %{customdata[4]}"
+                "<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+
+    # Quadrant labels as annotations (faint, large text)
+    label_font = {"size": 24, "color": "rgba(246,248,247,0.10)", "family": "Arial Black"}
+
+    fig.update_layout(
+        shapes=shapes,
+        title="",
+        xaxis_title="Signal Strength (Gap Score)",
+        yaxis_title="Persistence (Periods)",
+        xaxis={
+            "range": [x_min, x_max],
+            "zeroline": True,
+            "zerolinecolor": "rgba(246, 248, 247, 0.15)",
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
+        },
+        yaxis={
+            "range": [y_min, y_max],
+            "zeroline": False,
+            "gridcolor": "rgba(246, 248, 247, 0.08)",
+            "title_font": {"color": "#F6F8F7"},
+            "tickfont": {"color": "#F6F8F7"},
+            "dtick": 1,  # Show each persistence level
+        },
+        showlegend=False,
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 60, "r": 100, "t": 30, "b": 60},
+        autosize=True,
+        height=height,
+        annotations=[
+            # Top-Right: Mature Signal (BEST)
+            {"x": 0.85, "y": 0.85, "text": "Mature Signal",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Bottom-Right: Fresh Signal
+            {"x": 0.85, "y": 0.15, "text": "Fresh Signal",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Top-Left: Fading
+            {"x": 0.20, "y": 0.85, "text": "Fading",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+            # Bottom-Left: No Signal
+            {"x": 0.20, "y": 0.15, "text": "No Signal",
+             "showarrow": False, "font": label_font, "xref": "paper", "yref": "paper"},
+        ],
+    )
+
+    return fig
+
+
 def build_rsi_price_quadrant(
     coins: list[dict[str, Any]],
     height: int = 550,
