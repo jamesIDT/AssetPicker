@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_price_quadrant, build_rsi_scatter, build_rsi_sparkline_svg
+from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_price_quadrant, build_rsi_scatter, build_rsi_sparkline_svg, build_signal_persistence_quadrant
 from src.coingecko import CoinGeckoClient
 from src.data_store import (
     load_data,
@@ -29,6 +29,7 @@ from src.indicators import (
     calculate_opportunity_score,
     calculate_price_acceleration,
     calculate_rsi_acceleration,
+    calculate_signal_persistence,
     calculate_zscore,
     classify_signal_lifecycle,
     detect_divergence,
@@ -1186,6 +1187,10 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             "price_change_pct": price_change_pct,
             "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
             "price_history": daily_closes[-10:] if len(daily_closes) >= 10 else daily_closes,
+            "signal_persistence": calculate_signal_persistence(
+                daily_rsi_history[-10:] if len(daily_rsi_history) >= 10 else daily_rsi_history,
+                daily_closes[-10:] if len(daily_closes) >= 10 else daily_closes,
+            ) if len(daily_rsi_history) >= 5 and len(daily_closes) >= 5 else None,
         }
 
         # Calculate divergence data (reuse prices, daily_closes, daily_rsi_history from above)
@@ -2030,8 +2035,19 @@ if st.session_state.coin_data is not None:
                 st.info("Price acceleration data requires price history.")
 
         with pred_col2:
-            # Placeholder for Phase 28 Signal Persistence Quadrant
-            st.info("Signal Persistence Quadrant coming in Phase 28")
+            # Signal Persistence Quadrant
+            persistence_fig = build_signal_persistence_quadrant(
+                filtered_coin_data,
+                height=450,
+            )
+            if persistence_fig:
+                st.plotly_chart(
+                    persistence_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("Signal persistence requires RSI and price history.")
 
         # Section Header: Divergence Analysis
         st.markdown(
