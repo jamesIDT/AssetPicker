@@ -103,6 +103,20 @@ def extract_closes(market_chart: dict) -> list[float]:
     return [price for _, price in prices]
 
 
+def extract_volumes(market_chart: dict) -> list[float]:
+    """
+    Extract volume data from CoinGecko market_chart response.
+
+    Args:
+        market_chart: Dict with 'total_volumes' key containing [[timestamp_ms, volume], ...]
+
+    Returns:
+        List of volumes (oldest to newest)
+    """
+    volumes = market_chart.get("total_volumes", [])
+    return [vol for _, vol in volumes]
+
+
 def get_daily_rsi(market_chart: dict, period: int = 14) -> float | None:
     """
     Calculate daily RSI from CoinGecko market_chart data.
@@ -377,5 +391,206 @@ def calculate_multi_tf_rsi_with_history(
             rsi_hist_1w = calculate_rsi_history(closes_1w, period)
             if rsi_hist_1w:
                 result["1w"] = {"rsi": rsi_hist_1w[-1], "history": rsi_hist_1w}
+
+    return result
+
+
+def aggregate_to_4h_volumes(hourly_volumes: list) -> list[float]:
+    """
+    Aggregate hourly volume data to 4-hour totals.
+
+    Args:
+        hourly_volumes: List of [timestamp_ms, volume] pairs from CoinGecko
+
+    Returns:
+        List of total volumes for each 4-hour bucket (oldest to newest)
+    """
+    if not hourly_volumes:
+        return []
+
+    bucket_size_ms = 4 * 60 * 60 * 1000
+    buckets: dict[int, float] = {}
+
+    for timestamp_ms, volume in hourly_volumes:
+        bucket_key = timestamp_ms // bucket_size_ms
+        # Sum volumes within the bucket
+        buckets[bucket_key] = buckets.get(bucket_key, 0) + volume
+
+    sorted_buckets = sorted(buckets.keys())
+    return [buckets[bucket] for bucket in sorted_buckets]
+
+
+def aggregate_to_12h_volumes(hourly_volumes: list) -> list[float]:
+    """
+    Aggregate hourly volume data to 12-hour totals.
+
+    Args:
+        hourly_volumes: List of [timestamp_ms, volume] pairs from CoinGecko
+
+    Returns:
+        List of total volumes for each 12-hour bucket (oldest to newest)
+    """
+    if not hourly_volumes:
+        return []
+
+    bucket_size_ms = 12 * 60 * 60 * 1000
+    buckets: dict[int, float] = {}
+
+    for timestamp_ms, volume in hourly_volumes:
+        bucket_key = timestamp_ms // bucket_size_ms
+        buckets[bucket_key] = buckets.get(bucket_key, 0) + volume
+
+    sorted_buckets = sorted(buckets.keys())
+    return [buckets[bucket] for bucket in sorted_buckets]
+
+
+def aggregate_to_3d_volumes(daily_volumes: list) -> list[float]:
+    """
+    Aggregate daily volume data to 3-day totals.
+
+    Args:
+        daily_volumes: List of [timestamp_ms, volume] pairs from CoinGecko
+
+    Returns:
+        List of total volumes for each 3-day bucket (oldest to newest)
+    """
+    if not daily_volumes:
+        return []
+
+    bucket_size_ms = 3 * 24 * 60 * 60 * 1000
+    buckets: dict[int, float] = {}
+
+    for timestamp_ms, volume in daily_volumes:
+        bucket_key = timestamp_ms // bucket_size_ms
+        buckets[bucket_key] = buckets.get(bucket_key, 0) + volume
+
+    sorted_buckets = sorted(buckets.keys())
+    return [buckets[bucket] for bucket in sorted_buckets]
+
+
+def aggregate_to_weekly_volumes(daily_volumes: list) -> list[float]:
+    """
+    Aggregate daily volume data to weekly totals.
+
+    Args:
+        daily_volumes: List of [timestamp_ms, volume] pairs from CoinGecko
+
+    Returns:
+        List of total volumes for each week (oldest to newest)
+    """
+    if not daily_volumes:
+        return []
+
+    weekly_volumes: dict[tuple[int, int], float] = {}
+    for timestamp_ms, volume in daily_volumes:
+        dt = datetime.fromtimestamp(timestamp_ms / 1000)
+        iso = dt.isocalendar()
+        week_key = (iso.year, iso.week)
+        weekly_volumes[week_key] = weekly_volumes.get(week_key, 0) + volume
+
+    sorted_weeks = sorted(weekly_volumes.keys())
+    return [weekly_volumes[week] for week in sorted_weeks]
+
+
+def calculate_multi_tf_obv(
+    hourly_data: dict | None, daily_data: dict | None
+) -> dict[str, dict]:
+    """
+    Calculate OBV and OBV acceleration for all 6 timeframes.
+
+    Args:
+        hourly_data: CoinGecko hourly data {"prices": [...], "total_volumes": [...]} or None
+        daily_data: CoinGecko daily data {"prices": [...], "total_volumes": [...]} or None
+
+    Returns:
+        Dict with OBV data for available timeframes:
+        {"1h": {"obv": [...], "acceleration": {...}}, "4h": {...}, ...}
+        Omits timeframes with insufficient data.
+    """
+    from src.indicators import calculate_obv, calculate_obv_acceleration
+
+    result: dict[str, dict] = {}
+
+    # Hourly-based timeframes (1h, 4h, 12h)
+    if hourly_data:
+        hourly_prices = hourly_data.get("prices", [])
+        hourly_volumes = hourly_data.get("total_volumes", [])
+
+        if hourly_prices and hourly_volumes:
+            # 1h OBV
+            closes_1h = [price for _, price in hourly_prices]
+            volumes_1h = [vol for _, vol in hourly_volumes]
+            if len(closes_1h) == len(volumes_1h) and len(closes_1h) >= 3:
+                obv_1h = calculate_obv(closes_1h, volumes_1h)
+                if len(obv_1h) >= 3:
+                    accel_1h = calculate_obv_acceleration(obv_1h)
+                    result["1h"] = {"obv": obv_1h[-30:], "acceleration": accel_1h}
+
+            # 4h OBV
+            closes_4h = aggregate_to_4h_closes(hourly_prices)
+            volumes_4h = aggregate_to_4h_volumes(hourly_volumes)
+            if len(closes_4h) == len(volumes_4h) and len(closes_4h) >= 3:
+                obv_4h = calculate_obv(closes_4h, volumes_4h)
+                if len(obv_4h) >= 3:
+                    accel_4h = calculate_obv_acceleration(obv_4h)
+                    result["4h"] = {"obv": obv_4h[-30:], "acceleration": accel_4h}
+
+            # 12h OBV
+            closes_12h = aggregate_to_12h_closes(hourly_prices)
+            volumes_12h = aggregate_to_12h_volumes(hourly_volumes)
+            if len(closes_12h) == len(volumes_12h) and len(closes_12h) >= 3:
+                obv_12h = calculate_obv(closes_12h, volumes_12h)
+                if len(obv_12h) >= 3:
+                    accel_12h = calculate_obv_acceleration(obv_12h)
+                    result["12h"] = {"obv": obv_12h[-30:], "acceleration": accel_12h}
+
+    # Daily-based timeframes (1d, 3d, 1w)
+    if daily_data:
+        daily_prices = daily_data.get("prices", [])
+        daily_volumes = daily_data.get("total_volumes", [])
+
+        if daily_prices and daily_volumes:
+            # 1d OBV
+            closes_1d = [price for _, price in daily_prices]
+            volumes_1d = [vol for _, vol in daily_volumes]
+            if len(closes_1d) == len(volumes_1d) and len(closes_1d) >= 3:
+                obv_1d = calculate_obv(closes_1d, volumes_1d)
+                if len(obv_1d) >= 3:
+                    accel_1d = calculate_obv_acceleration(obv_1d)
+                    result["1d"] = {"obv": obv_1d[-30:], "acceleration": accel_1d}
+
+            # 3d OBV
+            closes_3d = aggregate_to_3d_closes(daily_prices)
+            volumes_3d = aggregate_to_3d_volumes(daily_volumes)
+            if len(closes_3d) == len(volumes_3d) and len(closes_3d) >= 3:
+                obv_3d = calculate_obv(closes_3d, volumes_3d)
+                if len(obv_3d) >= 3:
+                    accel_3d = calculate_obv_acceleration(obv_3d)
+                    result["3d"] = {"obv": obv_3d[-30:], "acceleration": accel_3d}
+
+            # 1w OBV
+            weekly_closes_data: dict[tuple[int, int], float] = {}
+            for timestamp_ms, price in daily_prices:
+                dt = datetime.fromtimestamp(timestamp_ms / 1000)
+                iso = dt.isocalendar()
+                week_key = (iso.year, iso.week)
+                weekly_closes_data[week_key] = price
+
+            weekly_volumes_data: dict[tuple[int, int], float] = {}
+            for timestamp_ms, volume in daily_volumes:
+                dt = datetime.fromtimestamp(timestamp_ms / 1000)
+                iso = dt.isocalendar()
+                week_key = (iso.year, iso.week)
+                weekly_volumes_data[week_key] = weekly_volumes_data.get(week_key, 0) + volume
+
+            sorted_weeks = sorted(weekly_closes_data.keys())
+            closes_1w = [weekly_closes_data[week] for week in sorted_weeks]
+            volumes_1w = [weekly_volumes_data.get(week, 0) for week in sorted_weeks]
+
+            if len(closes_1w) == len(volumes_1w) and len(closes_1w) >= 3:
+                obv_1w = calculate_obv(closes_1w, volumes_1w)
+                if len(obv_1w) >= 3:
+                    accel_1w = calculate_obv_acceleration(obv_1w)
+                    result["1w"] = {"obv": obv_1w[-30:], "acceleration": accel_1w}
 
     return result

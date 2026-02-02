@@ -13,7 +13,19 @@ logger = logging.getLogger(__name__)
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.charts import build_acceleration_quadrant, build_divergence_matrix, build_rsi_price_quadrant, build_rsi_scatter, build_rsi_sparkline_svg, build_signal_persistence_quadrant
+from src.charts import (
+    build_acceleration_quadrant,
+    build_coil_pressure_timeline,
+    build_divergence_matrix,
+    build_rsi_obv_quadrant,
+    build_rsi_price_bars,
+    build_rsi_price_quadrant,
+    build_rsi_scatter,
+    build_rsi_scatter_enhanced,
+    build_rsi_sparkline_svg,
+    build_signal_maturity_ladder,
+    build_signal_persistence_quadrant,
+)
 from src.coingecko import CoinGeckoClient
 from src.data_store import (
     load_data,
@@ -26,6 +38,8 @@ from src.indicators import (
     calculate_beta_adjusted_rsi,
     calculate_divergence_score,
     calculate_multi_tf_divergence,
+    calculate_obv,
+    calculate_obv_acceleration,
     calculate_opportunity_score,
     calculate_price_acceleration,
     calculate_rsi_acceleration,
@@ -37,7 +51,7 @@ from src.indicators import (
     detect_volatility_regime,
 )
 from src.sectors import calculate_sector_momentum, calculate_sector_rsi, get_sector
-from src.rsi import calculate_multi_tf_rsi, calculate_multi_tf_rsi_with_history, calculate_rsi, extract_closes, get_daily_rsi, get_weekly_rsi
+from src.rsi import calculate_multi_tf_obv, calculate_multi_tf_rsi, calculate_multi_tf_rsi_with_history, calculate_rsi, extract_closes, extract_volumes, get_daily_rsi, get_weekly_rsi
 
 # Load environment variables
 load_dotenv()
@@ -673,6 +687,25 @@ st.markdown(
         font-weight: 700;
         color: #F6F8F7;
     }
+
+    /* =================================================================
+       SIDEBAR QUICK CONTROLS STYLING
+       ================================================================= */
+    /* Style sidebar radio buttons to be more compact */
+    [data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] {
+        gap: 4px !important;
+    }
+
+    [data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] label {
+        padding: 4px 8px !important;
+        font-size: 0.75rem !important;
+    }
+
+    [data-testid="stSidebar"] h3 {
+        font-size: 1rem !important;
+        color: var(--accent) !important;
+        margin-bottom: 0.5rem !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -695,6 +728,7 @@ if "coin_data" not in st.session_state:
         st.session_state.hourly_history = hourly_cached.get("hourly_history") if hourly_cached else None
         # Multi-timeframe data (loaded from cache)
         st.session_state.multi_tf_rsi = cached_data.get("multi_tf_rsi", {})
+        st.session_state.multi_tf_obv = cached_data.get("multi_tf_obv", {})
         st.session_state.multi_tf_divergence = cached_data.get("multi_tf_divergence", {})
     else:
         st.session_state.coin_data = None
@@ -705,6 +739,7 @@ if "coin_data" not in st.session_state:
         st.session_state.btc_weekly_rsi = None
         st.session_state.hourly_history = None
         st.session_state.multi_tf_rsi = {}
+        st.session_state.multi_tf_obv = {}
         st.session_state.multi_tf_divergence = {}
         st.session_state.market_regimes = {}
 if "selected_sector" not in st.session_state:
@@ -715,6 +750,76 @@ if "show_timeframe" not in st.session_state:
     st.session_state.show_timeframe = None
 if "highlight_coin" not in st.session_state:
     st.session_state.highlight_coin = None
+
+# === SIDEBAR QUICK CONTROLS ===
+# These provide quick access to timeframe controls when scrolled down
+with st.sidebar:
+    st.markdown("### Quick Controls")
+    st.caption("Change timeframes without scrolling up")
+
+    # Check if MTF data available
+    sidebar_mtf_available = bool(st.session_state.get("multi_tf_rsi"))
+
+    # Show Timeframe selector
+    show_tf_options = ["1h", "4h", "12h", "1d", "3d", "1w"]
+    current_show_tf = st.session_state.get("show_tf_radio", "1d")
+    if current_show_tf not in show_tf_options:
+        current_show_tf = "1d"
+
+    def on_sidebar_show_tf():
+        st.session_state.show_tf_radio = st.session_state.sidebar_show_tf
+
+    sidebar_show_tf = st.radio(
+        "Show Timeframe",
+        show_tf_options,
+        index=show_tf_options.index(current_show_tf),
+        horizontal=True,
+        key="sidebar_show_tf",
+        disabled=not sidebar_mtf_available,
+        on_change=on_sidebar_show_tf,
+    )
+
+    # Highlight Timeframe selector
+    highlight_tf_options = ["All", "1w", "3d", "1d", "12h", "4h", "1h"]
+    current_highlight_tf = st.session_state.get("tf_highlight_radio", "All")
+    if current_highlight_tf not in highlight_tf_options:
+        current_highlight_tf = "All"
+
+    def on_sidebar_highlight_tf():
+        st.session_state.tf_highlight_radio = st.session_state.sidebar_highlight_tf
+
+    sidebar_highlight_tf = st.radio(
+        "Highlight Timeframe",
+        highlight_tf_options,
+        index=highlight_tf_options.index(current_highlight_tf),
+        horizontal=True,
+        key="sidebar_highlight_tf",
+        disabled=not sidebar_mtf_available,
+        on_change=on_sidebar_highlight_tf,
+    )
+
+    # Beta Benchmark selector
+    beta_options = ["BTC", "ETH", "Total3"]
+    current_beta = st.session_state.get("beta_benchmark_radio", "BTC")
+    if current_beta not in beta_options:
+        current_beta = "BTC"
+
+    def on_sidebar_beta():
+        st.session_state.beta_benchmark_radio = st.session_state.sidebar_beta
+
+    sidebar_beta = st.radio(
+        "Beta Benchmark",
+        beta_options,
+        index=beta_options.index(current_beta),
+        horizontal=True,
+        key="sidebar_beta",
+        on_change=on_sidebar_beta,
+    )
+
+    if not sidebar_mtf_available:
+        st.caption("Refresh data to enable all timeframes")
+
+    st.divider()
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -1125,6 +1230,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         # Calculate signal lifecycle for oversold and overbought
         prices = hist.get("prices", [])
         daily_closes = extract_closes(hist)
+        daily_volumes = extract_volumes(hist)
         daily_rsi_history = get_rsi_history(daily_closes)
 
         lifecycle_oversold = None
@@ -1151,6 +1257,13 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         price_acceleration = None
         if len(daily_closes) >= 3:
             price_acceleration = calculate_price_acceleration(daily_closes[-10:])
+
+        # Calculate OBV and OBV acceleration (volume conviction)
+        obv_acceleration = None
+        if len(daily_closes) >= 10 and len(daily_volumes) >= 10:
+            obv_series = calculate_obv(daily_closes[-30:], daily_volumes[-30:])
+            if len(obv_series) >= 3:
+                obv_acceleration = calculate_obv_acceleration(obv_series)
 
         # Calculate price change since signal started
         price_change_pct = None
@@ -1186,6 +1299,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
             "volatility": volatility,
             "acceleration": acceleration,
             "price_acceleration": price_acceleration,
+            "obv_acceleration": obv_acceleration,
             "price_change_pct": price_change_pct,
             "rsi_history": daily_rsi_history[-30:] if len(daily_rsi_history) >= 30 else daily_rsi_history,
             "price_history": daily_closes[-10:] if len(daily_closes) >= 10 else daily_closes,
@@ -1338,8 +1452,9 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
 
         result[result_idx]["sector_rank"] = sector_rank
 
-    # Calculate multi-timeframe RSI and divergence for all coins
+    # Calculate multi-timeframe RSI, OBV, and divergence for all coins
     multi_tf_rsi_all: dict = {}
+    multi_tf_obv_all: dict = {}
     multi_tf_divergence_all: dict = {}
 
     for coin_id in coin_ids:
@@ -1350,6 +1465,11 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
         multi_rsi = calculate_multi_tf_rsi_with_history(hourly, daily)
         if multi_rsi:
             multi_tf_rsi_all[coin_id] = multi_rsi
+
+        # Calculate multi-TF OBV with acceleration (for volume conviction)
+        multi_obv = calculate_multi_tf_obv(hourly, daily)
+        if multi_obv:
+            multi_tf_obv_all[coin_id] = multi_obv
 
         # Calculate multi-TF divergence
         multi_div = calculate_multi_tf_divergence(hourly, daily, multi_rsi)
@@ -1396,7 +1516,7 @@ async def fetch_all_data(coin_ids: list[str]) -> tuple[list[dict], list[dict], i
     }
 
     logger.info(f"[Refresh] Complete! {len(result)} coins processed, {failed_count} failed")
-    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi_all, multi_tf_divergence_all, market_regimes
+    return result, divergence_result, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi_all, multi_tf_obv_all, multi_tf_divergence_all, market_regimes
 
 
 # Load watchlist with error handling
@@ -1446,7 +1566,7 @@ with header_col2:
     if st.button("Refresh Data", type="primary", use_container_width=True):
         with st.spinner("Fetching data from CoinGecko..."):
             try:
-                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_divergence, market_regimes = asyncio.run(fetch_all_data(coin_ids))
+                data, divergence_data, failed_count, btc_regime, btc_weekly_rsi, hourly_history, multi_tf_rsi, multi_tf_obv, multi_tf_divergence, market_regimes = asyncio.run(fetch_all_data(coin_ids))
                 st.session_state.coin_data = data
                 st.session_state.divergence_data = divergence_data
                 st.session_state.last_updated = datetime.now()
@@ -1455,6 +1575,7 @@ with header_col2:
                 st.session_state.btc_weekly_rsi = btc_weekly_rsi
                 st.session_state.hourly_history = hourly_history
                 st.session_state.multi_tf_rsi = multi_tf_rsi
+                st.session_state.multi_tf_obv = multi_tf_obv
                 st.session_state.multi_tf_divergence = multi_tf_divergence
                 st.session_state.market_regimes = market_regimes
                 # Save to persistent storage
@@ -1467,6 +1588,7 @@ with header_col2:
                     btc_weekly_rsi=btc_weekly_rsi,
                     multi_tf_divergence=multi_tf_divergence,
                     multi_tf_rsi=multi_tf_rsi,
+                    multi_tf_obv=multi_tf_obv,
                     market_regimes=market_regimes,
                 )
                 st.rerun()
@@ -2065,6 +2187,204 @@ if st.session_state.coin_data is not None:
                 )
             else:
                 st.info("Signal persistence requires RSI and price history.")
+
+        # =====================================================================
+        # ENHANCED SIGNALS SECTION - Redesigned Quadrant Visualizations
+        # =====================================================================
+        st.markdown(
+            '<div class="section-header">ENHANCED SIGNALS — REDESIGNED VISUALIZATIONS</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Row 3: Signal Strength Scatter + Coil Pressure Timeline
+        enhanced_col1, enhanced_col2 = st.columns(2)
+
+        with enhanced_col1:
+            # Explanation for Signal Strength Scatter
+            with st.expander("ℹ️ Signal Strength Scatter — What & Why", expanded=False):
+                st.markdown("""
+**What it shows:** Each coin plotted by RSI (x-axis) vs Liquidity (y-axis).
+Marker SIZE = composite signal strength. Larger = stronger signal.
+ARROWS show RSI trajectory (green = accelerating up, red = decelerating).
+
+**Why it matters:** Combines 4 signal components into one view:
+- Z-score extremes (statistical outliers)
+- Divergence strength (RSI vs price disagreement)
+- Beta residual (outperformance vs BTC)
+- Signal persistence (how long the signal has lasted)
+
+**How to read:** Look for LARGE markers in the oversold zone (left side, RSI < 30)
+with GREEN arrows pointing right — these are building momentum.
+                """)
+            # Signal Strength + Trajectory Scatter (enhanced RSI scatter)
+            enhanced_scatter_fig = build_rsi_scatter_enhanced(
+                filtered_coin_data,
+                height=500,
+                highlight_coin=st.session_state.highlight_coin,
+                timeframe=st.session_state.get("show_timeframe"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+            )
+            if enhanced_scatter_fig:
+                st.plotly_chart(
+                    enhanced_scatter_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("Enhanced scatter requires RSI and signal data.")
+
+        with enhanced_col2:
+            # Explanation for Coil Pressure Timeline
+            with st.expander("ℹ️ Coil Pressure Timeline — What & Why", expanded=False):
+                st.markdown("""
+**What it shows:** Only coins in a "coiled spring" state — compressed volatility
+PLUS rising RSI momentum. Each mini-chart shows compression depth over 14 days.
+
+**Why it matters:** Low volatility + building RSI = potential explosive move incoming.
+Like a spring being compressed — the longer and tighter it coils, the bigger
+the eventual release. "RELEASE!" flags coins where volatility is expanding.
+
+**How to read:** Taller green area = more compression. Look for coins that have been
+coiled for 7+ days with deep compression. When volatility expands, price often follows.
+
+**If empty:** No coins currently meet the strict criteria (vol_ratio < 0.85 AND
+RSI acceleration > 0). This is actually useful info — no "coiled springs" right now.
+                """)
+            # Coil Pressure Timeline (small multiples for coiled coins)
+            coil_fig = build_coil_pressure_timeline(
+                filtered_coin_data,
+                height=500,
+                timeframe=st.session_state.get("show_timeframe"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+            )
+            if coil_fig:
+                st.plotly_chart(
+                    coil_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("Coil pressure requires volatility data.")
+
+        # Row 4: Traffic Light Bars + Signal Maturity Ladder
+        enhanced_col3, enhanced_col4 = st.columns(2)
+
+        with enhanced_col3:
+            # Explanation for RSI-Price Divergence Bars
+            with st.expander("ℹ️ RSI-Price Divergence — What & Why", expanded=False):
+                st.markdown("""
+**What it shows:** Gap Score = RSI acceleration minus Price acceleration.
+Sorted with bullish signals (green) at top, caution signals (blue) at bottom.
+
+**Color zones (sorted top to bottom):**
+- 🟢 **GREEN (>+4):** RSI strongly leading price — bullish, price may follow up
+- 🟡 **AMBER (+2 to +4):** Moderate RSI lead — promising, watch for confirmation
+- 🔵 **BLUE (<-2):** Price leading RSI — could be exhaustion OR early accumulation
+
+**Badges:** ●Build = RSI↑ Price↓ (best entry), ◆Conf = both↑, ○Exhaust = RSI↓ Price↑, ▽Capit = both↓
+
+**How to read:** Focus on GREEN bars at top — these are your bullish opportunities.
+BLUE bars at bottom aren't necessarily bad; they signal price moved first. Watch if
+RSI catches up (confirmation) or price retraces (reversal).
+                """)
+            # Traffic Light Ranked Bars (RSI-Price divergence)
+            bars_fig = build_rsi_price_bars(
+                filtered_coin_data,
+                height=450,
+                highlight_coin=st.session_state.highlight_coin,
+                timeframe=st.session_state.get("show_timeframe"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+            )
+            if bars_fig:
+                st.plotly_chart(
+                    bars_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("No coins with significant RSI-Price divergence (|gap| >= 2).")
+
+        with enhanced_col4:
+            # Explanation for Signal Maturity Ladder
+            with st.expander("ℹ️ Signal Maturity Ladder — What & Why", expanded=False):
+                st.markdown("""
+**What it shows:** Coins ranked by signal "maturity" (gap × persistence).
+Left bars = 5-period history (brighter = stronger signal that period).
+Right bars = current gap score. Status labels show signal stage.
+
+**Status meanings:**
+- **MATURE** (green): Gap > 2 AND persisted 4+ periods — established, reliable signal
+- **BUILDING** (blue): Gap > 2 AND persisted 2-3 periods — developing strength
+- **FRESH** (cyan): Gap > 2 but < 2 periods — new signal, needs confirmation
+- **FADING** (orange): Was strong, now weakening — consider exiting or waiting
+
+**How to read:** The 5-segment history shows signal consistency. All green segments
+= steady strong signal. Mixed segments = choppy/uncertain. Look for MATURE signals
+with consistent history — these have proven staying power.
+
+**Calculation:** Gap = RSI acceleration − Price acceleration (normalized).
+Persistence = count of last 5 periods where gap exceeded threshold.
+                """)
+            # Signal Maturity Ladder (persistence with 5-segment history)
+            ladder_fig = build_signal_maturity_ladder(
+                filtered_coin_data,
+                height=450,
+                highlight_coin=st.session_state.highlight_coin,
+                timeframe=st.session_state.get("show_timeframe"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+            )
+            if ladder_fig:
+                st.plotly_chart(
+                    ladder_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("No coins with signal maturity data.")
+
+        # Row 5: RSI vs Volume Conviction (OBV)
+        st.markdown("---")
+        obv_col1, obv_col2 = st.columns([2, 1])
+
+        with obv_col1:
+            # RSI vs OBV Quadrant Chart
+            obv_fig = build_rsi_obv_quadrant(
+                filtered_coin_data,
+                height=450,
+                highlight_coin=st.session_state.highlight_coin,
+                timeframe=st.session_state.get("show_timeframe"),
+                multi_tf_rsi=st.session_state.get("multi_tf_rsi"),
+                multi_tf_obv=st.session_state.get("multi_tf_obv"),
+            )
+            if obv_fig:
+                st.plotly_chart(
+                    obv_fig,
+                    use_container_width=True,
+                    config={"responsive": True, "displayModeBar": False},
+                )
+            else:
+                st.info("OBV acceleration requires volume history data.")
+
+        with obv_col2:
+            # Explanation for RSI vs OBV Conviction
+            st.markdown("#### RSI vs Volume Conviction")
+            st.markdown("""
+**What it shows:** RSI acceleration vs OBV (On-Balance Volume) acceleration.
+OBV tracks whether volume is flowing in on up days (accumulation) or down days (distribution).
+
+**Quadrants:**
+- ✅ **Confirmed** (top-right): RSI rising AND volume supporting — real breakout
+- ⚠️ **Hollow Rally** (top-left): RSI rising BUT volume distributing — WARNING, potential reversal
+- 👀 **Stealth Accum** (bottom-right): Volume buying quietly, RSI hasn't caught up — early signal
+- 💀 **Confirmed Bear** (bottom-left): Both falling — real weakness
+
+**Why it matters:** This reconciles the apparent conflict between RSI divergence and order flow:
+- RSI measures the *ratio* of up-closes to down-closes
+- OBV measures *volume conviction* (is volume coming in on up or down days?)
+
+**The "Hollow Rally" quadrant** identifies coins where RSI looks bullish but volume isn't confirming —
+similar to order flow showing "buying being absorbed." These rallies may fail.
+            """)
 
         # About to Pop - Ranked Signal List
         st.markdown(

@@ -1774,3 +1774,1176 @@ def build_rsi_price_quadrant(
     )
 
     return fig
+
+
+# ============================================================================
+# ENHANCED QUADRANT VISUALIZATIONS (from QUADRANT-VISUALIZATION-REDESIGN-SPEC)
+# ============================================================================
+
+
+def build_signal_maturity_ladder(
+    coins: list[dict[str, Any]],
+    height: int = 450,
+    highlight_coin: str | None = None,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+) -> go.Figure | None:
+    """
+    Build Signal Maturity Ladder with 5-segment history bars.
+
+    Redesigned from Signal Persistence Quadrant to show:
+    - Ranked list sorted by maturity score (gap × persistence)
+    - 5 stacked bars per coin showing gap history
+    - Status labels: MATURE/BUILDING/FRESH/FADING
+
+    Args:
+        coins: List of coin dicts with signal_persistence containing gap_history
+        height: Chart height in pixels
+        highlight_coin: Optional coin symbol to highlight
+        timeframe: Selected timeframe (1h, 4h, 12h, 1d, 3d, 1w) or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
+
+    Returns:
+        Plotly Figure or None if no valid data
+    """
+    from plotly.subplots import make_subplots
+    from src.indicators import calculate_rsi_acceleration
+
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Filter to coins with valid signal persistence data and gap_history
+    valid_coins = []
+    for coin in coins:
+        coin_id = coin.get("id")
+        sp = coin.get("signal_persistence")
+        if sp and sp.get("gap_history"):
+            gap_history = sp["gap_history"]
+            if len(gap_history) >= 1:
+                # Get RSI acceleration based on timeframe
+                rsi_accel = 0
+                if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+                    tf_data = multi_tf_rsi[coin_id].get(timeframe)
+                    if tf_data is not None and isinstance(tf_data, dict):
+                        history = tf_data.get("history", [])
+                        if len(history) >= 3:
+                            accel_result = calculate_rsi_acceleration(history)
+                            if accel_result:
+                                rsi_accel = accel_result.get("acceleration", 0)
+
+                # Calculate current gap based on timeframe or use daily
+                if timeframe and rsi_accel != 0:
+                    price_accel_data = coin.get("price_acceleration", {})
+                    price_accel = price_accel_data.get("acceleration", 0) if price_accel_data else 0
+                    current_gap = rsi_accel - price_accel
+                else:
+                    current_gap = sp.get("current_gap", 0)
+
+                persistence = sp.get("persistence", 0)  # Always from daily
+                # Only include coins with some signal
+                if persistence >= 1 or abs(current_gap) > 1:
+                    valid_coins.append({
+                        "symbol": coin.get("symbol", "?"),
+                        "current_gap": current_gap,
+                        "persistence": persistence,
+                        "gap_history": gap_history,  # Always daily history
+                        "maturity_score": abs(current_gap) * persistence,
+                    })
+
+    if not valid_coins:
+        return None
+
+    # Sort by maturity score descending (best first)
+    valid_coins.sort(key=lambda c: c["maturity_score"], reverse=True)
+
+    # Limit to top 15 for readability
+    valid_coins = valid_coins[:15]
+
+    # Reverse for Plotly horizontal bars (renders bottom-to-top, so reverse puts best at top)
+    valid_coins = valid_coins[::-1]
+
+    # Determine status for each coin
+    def get_status(coin):
+        gap = coin["current_gap"]
+        pers = coin["persistence"]
+        if abs(gap) > 2 and pers >= 4:
+            return ("MATURE", "#4CAF50")  # Green
+        elif abs(gap) > 2 and pers >= 2:
+            return ("BUILDING", "#2196F3")  # Blue
+        elif abs(gap) > 2:
+            return ("FRESH", "#00BCD4")  # Cyan
+        else:
+            return ("FADING", "#FF9800")  # Orange
+
+    # Build the figure with subplots: history bars | gap value | status
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.7, 0.3],
+        horizontal_spacing=0.02,
+        specs=[[{"type": "bar"}, {"type": "bar"}]],
+    )
+
+    # Prepare data
+    symbols = [c["symbol"] for c in valid_coins]
+    gap_values = [c["current_gap"] for c in valid_coins]
+    statuses = [get_status(c) for c in valid_coins]
+    status_labels = [s[0] for s in statuses]
+    status_colors = [s[1] for s in statuses]
+
+    # Threshold for "signal present"
+    threshold = 0.5
+
+    # Add 5 stacked bar traces for history segments
+    segment_colors_base = ["#4CAF50", "#4CAF50", "#4CAF50", "#4CAF50", "#4CAF50"]
+
+    for period_idx in range(5):
+        period_values = []
+        period_colors = []
+
+        for coin in valid_coins:
+            gap_hist = coin["gap_history"]
+            # Pad if less than 5 values
+            while len(gap_hist) < 5:
+                gap_hist = [0] + gap_hist
+
+            gap_val = gap_hist[period_idx] if period_idx < len(gap_hist) else 0
+
+            # All segments same width (1), color intensity varies
+            period_values.append(1)
+
+            if gap_val > threshold:
+                # Intensity based on gap magnitude
+                intensity = min(1.0, abs(gap_val) / 8)
+                alpha = 0.3 + 0.7 * intensity
+                period_colors.append(f"rgba(76, 175, 80, {alpha})")
+            else:
+                period_colors.append("rgba(158, 158, 158, 0.15)")
+
+        fig.add_trace(
+            go.Bar(
+                y=symbols,
+                x=period_values,
+                orientation="h",
+                marker_color=period_colors,
+                showlegend=False,
+                hoverinfo="skip",
+            ),
+            row=1, col=1,
+        )
+
+    # Add gap value bars (right side)
+    gap_colors = ["#4CAF50" if g > 0 else "#2196F3" for g in gap_values]  # Green=positive, Blue=negative
+    fig.add_trace(
+        go.Bar(
+            y=symbols,
+            x=[abs(g) for g in gap_values],
+            orientation="h",
+            marker_color=gap_colors,
+            text=[f"{g:+.1f}" for g in gap_values],
+            textposition="outside",
+            textfont={"size": 10, "color": "#F6F8F7"},
+            showlegend=False,
+            hovertemplate="%{y}: Gap %{text}<extra></extra>",
+        ),
+        row=1, col=2,
+    )
+
+    # Add status annotations on the right edge
+    for i, (symbol, status, color) in enumerate(zip(symbols, status_labels, status_colors)):
+        fig.add_annotation(
+            x=1.02,
+            y=symbol,
+            text=status,
+            showarrow=False,
+            font={"size": 9, "color": color, "family": "Arial Black"},
+            xref="paper",
+            yref="y2",
+            xanchor="left",
+        )
+
+    fig.update_layout(
+        barmode="stack",
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 60, "r": 80, "t": 40, "b": 30},
+        height=height,
+        title={
+            "text": f"Signal Maturity Ladder [{tf_label}]",
+            "font": {"size": 14, "color": "#F6F8F7"},
+            "x": 0.5,
+        },
+        showlegend=False,
+    )
+
+    # Update axes
+    fig.update_xaxes(
+        showticklabels=False,
+        showgrid=False,
+        zeroline=False,
+        row=1, col=1,
+    )
+    fig.update_xaxes(
+        showticklabels=False,
+        showgrid=False,
+        zeroline=False,
+        row=1, col=2,
+    )
+    fig.update_yaxes(
+        tickfont={"size": 10, "color": "#F6F8F7"},
+        showgrid=False,
+        row=1, col=1,
+    )
+    fig.update_yaxes(
+        showticklabels=False,
+        showgrid=False,
+        row=1, col=2,
+    )
+
+    return fig
+
+
+def build_rsi_price_bars(
+    coins: list[dict[str, Any]],
+    height: int = 450,
+    highlight_coin: str | None = None,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+) -> go.Figure | None:
+    """
+    Build Traffic Light Ranked Bars for RSI-Price divergence.
+
+    Redesigned from RSI-Price Quadrant to show:
+    - Horizontal bar chart sorted by gap score
+    - Traffic light zones: GREEN (>+4), AMBER (+2 to +4), BLUE (<-2)
+    - Quadrant badge after coin name
+
+    Args:
+        coins: List of coin dicts with signal_persistence data
+        height: Chart height in pixels
+        highlight_coin: Optional coin symbol to highlight
+        timeframe: Selected timeframe (1h, 4h, 12h, 1d, 3d, 1w) or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
+
+    Returns:
+        Plotly Figure or None if no valid data
+    """
+    from src.indicators import calculate_rsi_acceleration
+
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Extract coins with meaningful gap scores (|gap| >= 2)
+    valid_coins = []
+    for coin in coins:
+        coin_id = coin.get("id")
+
+        # Get RSI acceleration based on timeframe
+        rsi_accel = 0
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            tf_data = multi_tf_rsi[coin_id].get(timeframe)
+            if tf_data is not None and isinstance(tf_data, dict):
+                history = tf_data.get("history", [])
+                if len(history) >= 3:
+                    accel_result = calculate_rsi_acceleration(history)
+                    if accel_result:
+                        rsi_accel = accel_result.get("acceleration", 0)
+
+        # Fall back to daily acceleration
+        if rsi_accel == 0:
+            accel = coin.get("acceleration", {})
+            rsi_accel = accel.get("acceleration", 0) if accel else 0
+
+        # Get price acceleration (always daily for now)
+        price_accel_data = coin.get("price_acceleration", {})
+        price_accel = price_accel_data.get("acceleration", 0) if price_accel_data else 0
+
+        # Calculate gap: RSI accel - Price accel
+        # If timeframe selected, use timeframe RSI accel vs daily price accel
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            gap = rsi_accel - price_accel
+        else:
+            # Use pre-calculated signal_persistence gap for daily
+            sp = coin.get("signal_persistence")
+            gap = sp.get("current_gap", 0) if sp else (rsi_accel - price_accel)
+
+        # Include coins with meaningful divergence in either direction
+        if abs(gap) >= 2:
+                price_accel = coin.get("price_acceleration", {})
+                p_accel = price_accel.get("acceleration", 0) if price_accel else 0
+
+                # Determine quadrant badge
+                if rsi_accel > 0 and p_accel <= 0:
+                    badge = "●"
+                    badge_name = "Build"
+                elif rsi_accel > 0 and p_accel > 0:
+                    badge = "◆"
+                    badge_name = "Conf"
+                elif rsi_accel <= 0 and p_accel > 0:
+                    badge = "○"
+                    badge_name = "Exhaust"
+                else:
+                    badge = "▽"
+                    badge_name = "Capit"
+
+                valid_coins.append({
+                    "symbol": coin.get("symbol", "?"),
+                    "gap": gap,
+                    "badge": badge,
+                    "badge_name": badge_name,
+                    "label": f"{coin.get('symbol', '?')} {badge}{badge_name}",
+                })
+
+    if not valid_coins:
+        return None
+
+    # Sort by gap score descending (highest positive first in list)
+    valid_coins.sort(key=lambda c: c["gap"], reverse=True)
+
+    # Limit to top 20
+    valid_coins = valid_coins[:20]
+
+    # Reverse for Plotly horizontal bars (renders bottom-to-top, so reverse puts best at top)
+    valid_coins = valid_coins[::-1]
+
+    # Prepare data
+    labels = [c["label"] for c in valid_coins]
+    gaps = [c["gap"] for c in valid_coins]
+
+    # Traffic light zone colors (BLUE for negative = price leading, not "danger")
+    def get_zone_color(gap):
+        if gap > 4:
+            return "#4CAF50"  # Green - RSI strongly leading (bullish)
+        elif gap > 2:
+            return "#FF9800"  # Amber - RSI moderately leading (watch)
+        elif gap > -2:
+            return "#9E9E9E"  # Gray - Parity zone (no edge)
+        else:
+            return "#2196F3"  # Blue - Price leading RSI (potential reversal/accumulation)
+
+    colors = [get_zone_color(g) for g in gaps]
+
+    fig = go.Figure()
+
+    # Add bars
+    fig.add_trace(
+        go.Bar(
+            y=labels,
+            x=gaps,
+            orientation="h",
+            marker_color=colors,
+            text=[f"{g:+.1f}" for g in gaps],
+            textposition="outside",
+            textfont={"size": 10, "color": "#F6F8F7"},
+            hovertemplate="%{y}<br>Gap: %{x:.2f}<extra></extra>",
+        )
+    )
+
+    # Add zero line
+    fig.add_vline(
+        x=0,
+        line={"color": "rgba(182, 154, 90, 0.6)", "dash": "dash", "width": 2},
+    )
+
+    # Add zone annotations
+    fig.add_annotation(
+        x=0.98, y=1.02,
+        text="🟢 >+4 | 🟡 +2 to +4 | 🔵 <-2",
+        showarrow=False,
+        font={"size": 10, "color": "#9E9E9E"},
+        xref="paper", yref="paper",
+        xanchor="right",
+    )
+    fig.add_annotation(
+        x=0.02, y=1.02,
+        text="⬆️ RSI leading (bullish)  ⬇️ Price leading (watch)",
+        showarrow=False,
+        font={"size": 10, "color": "#9E9E9E"},
+        xref="paper", yref="paper",
+        xanchor="left",
+    )
+
+    fig.update_layout(
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 100, "r": 60, "t": 40, "b": 40},
+        height=height,
+        title={
+            "text": f"RSI-Price Divergence [{tf_label}] (Bullish at Top)",
+            "font": {"size": 14, "color": "#F6F8F7"},
+            "x": 0.5,
+        },
+        xaxis={
+            "title": {"text": "Gap Score", "font": {"size": 11, "color": "#F6F8F7"}},
+            "tickfont": {"size": 10, "color": "#F6F8F7"},
+            "showgrid": True,
+            "gridcolor": "rgba(246, 248, 247, 0.1)",
+            "zeroline": False,
+        },
+        yaxis={
+            "tickfont": {"size": 10, "color": "#F6F8F7"},
+            "showgrid": False,
+        },
+    )
+
+    return fig
+
+
+def build_rsi_obv_quadrant(
+    coins: list[dict[str, Any]],
+    height: int = 550,
+    highlight_coin: str | None = None,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+    multi_tf_obv: dict[str, dict] | None = None,
+) -> go.Figure | None:
+    """
+    Build RSI Acceleration vs OBV Acceleration quadrant chart.
+
+    This chart surfaces conflicts between RSI momentum and volume conviction:
+    - Top-Right (RSI+ / OBV+): "Confirmed" — RSI rising with volume support
+    - Top-Left (RSI+ / OBV-): "Hollow" — RSI rising but volume distributing (WARNING)
+    - Bottom-Right (RSI- / OBV+): "Stealth Accumulation" — Volume buying, RSI hasn't caught up
+    - Bottom-Left (RSI- / OBV-): "Confirmed Bear" — Both falling, real weakness
+
+    The "Hollow" quadrant (top-left) identifies the order flow absorption scenario:
+    RSI looks bullish but volume is flowing out on down days.
+
+    Args:
+        coins: List of coin dicts with keys:
+            - id: Coin ID
+            - symbol: Coin symbol (e.g., "BTC")
+            - acceleration: Dict with RSI acceleration data
+            - obv_acceleration: Dict with OBV acceleration data
+        height: Chart height in pixels (default 550)
+        highlight_coin: Optional coin symbol to highlight
+        timeframe: Selected timeframe (1h, 4h, 12h, 1d, 3d, 1w) or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
+        multi_tf_obv: Dict mapping coin_id -> {timeframe: {"obv": list, "acceleration": dict}}
+
+    Returns:
+        Plotly Figure object with the quadrant scatter plot, or None if no valid data
+    """
+    from src.indicators import calculate_rsi_acceleration
+
+    fig = go.Figure()
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Filter coins with both RSI and OBV acceleration data
+    valid_coins = []
+    for coin in coins:
+        coin_id = coin.get("id")
+        symbol = coin.get("symbol", "?")
+
+        # Get RSI acceleration based on timeframe
+        rsi_accel = None
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            tf_data = multi_tf_rsi[coin_id].get(timeframe)
+            if tf_data and isinstance(tf_data, dict):
+                history = tf_data.get("history", [])
+                if len(history) >= 3:
+                    accel_result = calculate_rsi_acceleration(history)
+                    if accel_result:
+                        rsi_accel = accel_result.get("acceleration")
+
+        # Fall back to daily acceleration
+        if rsi_accel is None:
+            rsi_accel_data = coin.get("acceleration")
+            rsi_accel = rsi_accel_data.get("acceleration") if rsi_accel_data else None
+
+        # Get OBV acceleration based on timeframe
+        obv_accel = None
+        if timeframe and multi_tf_obv and coin_id in multi_tf_obv:
+            tf_obv_data = multi_tf_obv[coin_id].get(timeframe)
+            if tf_obv_data and isinstance(tf_obv_data, dict):
+                accel_data = tf_obv_data.get("acceleration")
+                if accel_data:
+                    obv_accel = accel_data.get("acceleration")
+
+        # Fall back to daily OBV acceleration
+        if obv_accel is None:
+            obv_accel_data = coin.get("obv_acceleration")
+            obv_accel = obv_accel_data.get("acceleration") if obv_accel_data else None
+
+        if rsi_accel is not None and obv_accel is not None:
+            valid_coins.append({
+                "symbol": symbol,
+                "rsi_accel": rsi_accel,
+                "obv_accel": obv_accel,
+            })
+
+    if not valid_coins:
+        fig.update_layout(
+            title="RSI vs OBV Conviction",
+            annotations=[
+                {
+                    "text": "No RSI/OBV acceleration data available",
+                    "xref": "paper",
+                    "yref": "paper",
+                    "x": 0.5,
+                    "y": 0.5,
+                    "showarrow": False,
+                    "font": {"size": 16, "color": "#F6F8F7"},
+                },
+            ],
+            paper_bgcolor="#4A4F5E",
+            plot_bgcolor="#4A4F5E",
+        )
+        return fig
+
+    # Extract data for plotting
+    symbols = [c["symbol"] for c in valid_coins]
+    rsi_accels = [c["rsi_accel"] for c in valid_coins]
+    obv_accels = [c["obv_accel"] for c in valid_coins]
+
+    # Calculate axis ranges from data
+    x_min = min(rsi_accels) - 2
+    x_max = max(rsi_accels) + 2
+    y_min = min(obv_accels) - 2
+    y_max = max(obv_accels) + 2
+
+    # Ensure axes include 0 for quadrant division
+    if x_min > -2:
+        x_min = -2
+    if x_max < 2:
+        x_max = 2
+    if y_min > -2:
+        y_min = -2
+    if y_max < 2:
+        y_max = 2
+
+    # Build customdata for tooltips
+    customdata = []
+    for c in valid_coins:
+        # Determine quadrant interpretation
+        if c["rsi_accel"] > 0 and c["obv_accel"] > 0:
+            quadrant = "Confirmed Bullish"
+        elif c["rsi_accel"] > 0 and c["obv_accel"] <= 0:
+            quadrant = "Hollow Rally ⚠️"
+        elif c["rsi_accel"] <= 0 and c["obv_accel"] > 0:
+            quadrant = "Stealth Accumulation"
+        else:
+            quadrant = "Confirmed Bearish"
+
+        customdata.append([
+            c["symbol"],
+            c["rsi_accel"],
+            c["obv_accel"],
+            quadrant,
+        ])
+
+    # Collect all shapes for batch update
+    shapes = []
+
+    # Quadrant background shading
+    # Top-Right (RSI+ / OBV+): "Confirmed" — green tint
+    shapes.append({
+        "type": "rect", "x0": 0, "x1": x_max, "y0": 0, "y1": y_max,
+        "fillcolor": "rgba(76, 175, 80, 0.15)", "line_width": 0, "layer": "below"
+    })
+    # Top-Left (RSI+ / OBV-): "Hollow" — orange/warning tint
+    shapes.append({
+        "type": "rect", "x0": x_min, "x1": 0, "y0": 0, "y1": y_max,
+        "fillcolor": "rgba(255, 152, 0, 0.18)", "line_width": 0, "layer": "below"
+    })
+    # Bottom-Right (RSI- / OBV+): "Stealth Accumulation" — blue tint
+    shapes.append({
+        "type": "rect", "x0": 0, "x1": x_max, "y0": y_min, "y1": 0,
+        "fillcolor": "rgba(33, 150, 243, 0.15)", "line_width": 0, "layer": "below"
+    })
+    # Bottom-Left (RSI- / OBV-): "Confirmed Bear" — red tint
+    shapes.append({
+        "type": "rect", "x0": x_min, "x1": 0, "y0": y_min, "y1": 0,
+        "fillcolor": "rgba(244, 67, 54, 0.12)", "line_width": 0, "layer": "below"
+    })
+
+    # Quadrant boundary lines
+    shapes.append({
+        "type": "line", "x0": 0, "x1": 0, "y0": y_min, "y1": y_max,
+        "line": {"color": "rgba(246,248,247,0.2)", "width": 1, "dash": "dot"}
+    })
+    shapes.append({
+        "type": "line", "x0": x_min, "x1": x_max, "y0": 0, "y1": 0,
+        "line": {"color": "rgba(246,248,247,0.2)", "width": 1, "dash": "dot"}
+    })
+
+    # Handle highlight_coin: adjust sizes and opacity
+    base_size = 12
+    if highlight_coin:
+        adjusted_sizes = []
+        marker_opacities = []
+        marker_line_widths = []
+        marker_line_colors = []
+        for sym in symbols:
+            if sym == highlight_coin:
+                adjusted_sizes.append(base_size * 1.5)
+                marker_opacities.append(1.0)
+                marker_line_widths.append(3)
+                marker_line_colors.append("#FFB020")
+            else:
+                adjusted_sizes.append(base_size)
+                marker_opacities.append(0.4)
+                marker_line_widths.append(1)
+                marker_line_colors.append("rgba(255,255,255,0.4)")
+    else:
+        adjusted_sizes = [base_size] * len(symbols)
+        marker_opacities = [0.85] * len(symbols)
+        marker_line_widths = [1] * len(symbols)
+        marker_line_colors = ["rgba(255,255,255,0.4)"] * len(symbols)
+
+    # Color by quadrant position (using RSI accel sign + OBV accel sign)
+    colors = []
+    for c in valid_coins:
+        if c["rsi_accel"] > 0 and c["obv_accel"] > 0:
+            colors.append("#4CAF50")  # Green - confirmed
+        elif c["rsi_accel"] > 0 and c["obv_accel"] <= 0:
+            colors.append("#FF9800")  # Orange - hollow (warning)
+        elif c["rsi_accel"] <= 0 and c["obv_accel"] > 0:
+            colors.append("#2196F3")  # Blue - stealth accumulation
+        else:
+            colors.append("#F44336")  # Red - confirmed bear
+
+    # Add scatter trace
+    fig.add_trace(
+        go.Scatter(
+            x=rsi_accels,
+            y=obv_accels,
+            mode="markers+text",
+            text=symbols,
+            textposition="top center",
+            textfont={"size": 9, "color": "#F6F8F7"},
+            customdata=customdata,
+            marker={
+                "size": adjusted_sizes,
+                "color": colors,
+                "opacity": marker_opacities,
+                "line": {"width": marker_line_widths, "color": marker_line_colors},
+            },
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                "RSI Accel: %{customdata[1]:.2f}<br>"
+                "OBV Accel: %{customdata[2]:.2f}<br>"
+                "<b>%{customdata[3]}</b>"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+    # Quadrant labels
+    annotations = [
+        {
+            "x": x_max * 0.7, "y": y_max * 0.85,
+            "text": "✅ Confirmed",
+            "showarrow": False,
+            "font": {"size": 11, "color": "rgba(76, 175, 80, 0.8)"},
+        },
+        {
+            "x": x_min * 0.7, "y": y_max * 0.85,
+            "text": "⚠️ Hollow Rally",
+            "showarrow": False,
+            "font": {"size": 11, "color": "rgba(255, 152, 0, 0.9)"},
+        },
+        {
+            "x": x_max * 0.7, "y": y_min * 0.85,
+            "text": "👀 Stealth Accum",
+            "showarrow": False,
+            "font": {"size": 11, "color": "rgba(33, 150, 243, 0.8)"},
+        },
+        {
+            "x": x_min * 0.7, "y": y_min * 0.85,
+            "text": "💀 Confirmed Bear",
+            "showarrow": False,
+            "font": {"size": 11, "color": "rgba(244, 67, 54, 0.8)"},
+        },
+    ]
+
+    fig.update_layout(
+        shapes=shapes,
+        annotations=annotations,
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 60, "r": 40, "t": 50, "b": 50},
+        height=height,
+        title={
+            "text": f"RSI vs Volume Conviction [{tf_label}]",
+            "font": {"size": 14, "color": "#F6F8F7"},
+            "x": 0.5,
+        },
+        xaxis={
+            "title": {"text": "RSI Acceleration", "font": {"size": 11, "color": "#F6F8F7"}},
+            "tickfont": {"size": 10, "color": "#F6F8F7"},
+            "showgrid": True,
+            "gridcolor": "rgba(246, 248, 247, 0.1)",
+            "zeroline": False,
+            "range": [x_min, x_max],
+        },
+        yaxis={
+            "title": {"text": "OBV Acceleration", "font": {"size": 11, "color": "#F6F8F7"}},
+            "tickfont": {"size": 10, "color": "#F6F8F7"},
+            "showgrid": True,
+            "gridcolor": "rgba(246, 248, 247, 0.1)",
+            "zeroline": False,
+            "range": [y_min, y_max],
+        },
+    )
+
+    return fig
+
+
+def build_rsi_scatter_enhanced(
+    coins: list[dict[str, Any]],
+    height: int = 600,
+    highlight_coin: str | None = None,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+) -> go.Figure | None:
+    """
+    Build Signal Strength + Trajectory Scatter.
+
+    Redesigned from RSI Scatter to show:
+    - Marker SIZE = composite signal strength (12-40px)
+    - Color = green (bullish) / red (bearish) / gray (neutral)
+    - Trajectory arrows for top 10 signals
+    - Labels only for top 10 by signal strength
+
+    Args:
+        coins: List of coin dicts with RSI, divergence, and signal data
+        height: Chart height in pixels
+        highlight_coin: Optional coin symbol to highlight
+        timeframe: Selected timeframe (1h, 4h, 12h, 1d, 3d, 1w) or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
+
+    Returns:
+        Plotly Figure or None if no valid data
+    """
+    from src.indicators import calculate_rsi_acceleration
+
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Calculate signal strength for each coin
+    valid_coins = []
+    for coin in coins:
+        coin_id = coin.get("id")
+        vol_mcap = coin.get("vol_mcap_ratio", 0.5)
+
+        # Get RSI and acceleration based on timeframe
+        rsi_val = None
+        accel_val = 0
+
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            tf_data = multi_tf_rsi[coin_id].get(timeframe)
+            if tf_data is not None:
+                if isinstance(tf_data, dict):
+                    rsi_val = tf_data.get("rsi")
+                    history = tf_data.get("history", [])
+                    if len(history) >= 3:
+                        accel_result = calculate_rsi_acceleration(history)
+                        if accel_result:
+                            accel_val = accel_result.get("acceleration", 0)
+                else:
+                    rsi_val = tf_data
+
+        # Fall back to daily
+        if rsi_val is None:
+            rsi_val = coin.get("daily_rsi")
+        if accel_val == 0:
+            accel = coin.get("acceleration", {})
+            accel_val = accel.get("acceleration", 0) if accel else 0
+
+        if rsi_val is None:
+            continue
+
+        # Calculate composite signal strength
+        # Components: zscore, divergence, beta residual, persistence
+        zscore = coin.get("z_score", {})
+        zscore_val = abs(zscore.get("zscore", 0)) if zscore else 0
+
+        # Divergence score (0-4)
+        div = coin.get("divergence", {})
+        div_score = div.get("score", 0) if div else 0
+
+        # Beta residual (normalized)
+        beta = coin.get("beta_info", {})
+        beta_residual = beta.get("residual", 0) if beta else 0
+
+        # Persistence (0-5)
+        sp = coin.get("signal_persistence", {})
+        persistence = sp.get("persistence", 0) if sp else 0
+
+        # Composite signal strength (0-100 scale)
+        signal_strength = (
+            25 * min(zscore_val / 2, 1) +  # Z-score component (capped at 2)
+            25 * (div_score / 4) +          # Divergence component
+            25 * min(abs(beta_residual) / 20, 1) +  # Beta component
+            25 * (persistence / 5)          # Persistence component
+        )
+
+        # Determine signal direction
+        div_type = div.get("type", "none") if div else "none"
+        if div_type == "bullish" or (sp and sp.get("current_gap", 0) > 2):
+            direction = "bullish"
+        elif div_type == "bearish" or (sp and sp.get("current_gap", 0) < -2):
+            direction = "bearish"
+        else:
+            direction = "neutral"
+
+        valid_coins.append({
+            "symbol": coin.get("symbol", "?"),
+            "rsi": rsi_val,
+            "liquidity": vol_mcap,
+            "signal_strength": signal_strength,
+            "direction": direction,
+            "accel": accel_val,
+        })
+
+    if not valid_coins:
+        return None
+
+    # Sort by signal strength for labeling
+    valid_coins.sort(key=lambda c: c["signal_strength"], reverse=True)
+
+    # Prepare data
+    rsi_vals = [c["rsi"] for c in valid_coins]
+    liq_vals = [c["liquidity"] for c in valid_coins]
+    symbols = [c["symbol"] for c in valid_coins]
+    strengths = [c["signal_strength"] for c in valid_coins]
+    directions = [c["direction"] for c in valid_coins]
+
+    # Marker sizes (12-40px based on signal strength)
+    sizes = [12 + (40 - 12) * (s / 100) for s in strengths]
+
+    # Colors based on direction
+    def get_color(direction, strength):
+        alpha = 0.4 + 0.6 * (strength / 100)
+        if direction == "bullish":
+            return f"rgba(76, 175, 80, {alpha})"
+        elif direction == "bearish":
+            return f"rgba(244, 67, 54, {alpha})"
+        else:
+            return f"rgba(158, 158, 158, {alpha})"
+
+    colors = [get_color(d, s) for d, s in zip(directions, strengths)]
+
+    # Labels only for top 10
+    text_labels = [s if i < 10 else "" for i, s in enumerate(symbols)]
+
+    fig = go.Figure()
+
+    # Add quadrant backgrounds
+    # Bottom-left: Oversold + Low Liq (opportunity)
+    fig.add_shape(
+        type="rect", x0=0, x1=30, y0=0, y1=0.5,
+        fillcolor="rgba(76, 175, 80, 0.08)", line_width=0,
+    )
+    # Bottom-right: Oversold + High Liq (strong opportunity)
+    fig.add_shape(
+        type="rect", x0=0, x1=30, y0=0.5, y1=1.5,
+        fillcolor="rgba(76, 175, 80, 0.15)", line_width=0,
+    )
+    # Top-right: Overbought + High Liq (caution)
+    fig.add_shape(
+        type="rect", x0=70, x1=100, y0=0.5, y1=1.5,
+        fillcolor="rgba(244, 67, 54, 0.1)", line_width=0,
+    )
+    # Top-left: Overbought + Low Liq (extreme caution)
+    fig.add_shape(
+        type="rect", x0=70, x1=100, y0=0, y1=0.5,
+        fillcolor="rgba(244, 67, 54, 0.05)", line_width=0,
+    )
+
+    # Add quadrant boundary lines
+    fig.add_hline(y=0.5, line={"color": "rgba(246, 248, 247, 0.2)", "dash": "dash"})
+    fig.add_vline(x=30, line={"color": "rgba(76, 175, 80, 0.3)", "dash": "dash"})
+    fig.add_vline(x=70, line={"color": "rgba(244, 67, 54, 0.3)", "dash": "dash"})
+    fig.add_vline(x=50, line={"color": "rgba(246, 248, 247, 0.15)", "dash": "dot"})
+
+    # Add scatter
+    fig.add_trace(
+        go.Scatter(
+            x=rsi_vals,
+            y=liq_vals,
+            mode="markers+text",
+            marker={
+                "size": sizes,
+                "color": colors,
+                "line": {"width": 1, "color": "rgba(246, 248, 247, 0.3)"},
+            },
+            text=text_labels,
+            textposition="top center",
+            textfont={"size": 9, "color": "#F6F8F7"},
+            hovertemplate="<b>%{customdata[0]}</b><br>RSI: %{x:.1f}<br>Liquidity: %{y:.2f}<br>Signal: %{customdata[1]:.0f}%<extra></extra>",
+            customdata=[[s, str] for s, str in zip(symbols, strengths)],
+        )
+    )
+
+    # Add trajectory arrows for top 10 with acceleration
+    for i, coin in enumerate(valid_coins[:10]):
+        if abs(coin["accel"]) > 0.5:
+            # Arrow direction based on RSI acceleration
+            arrow_dx = coin["accel"] * 3  # Scale for visibility
+            fig.add_annotation(
+                x=coin["rsi"],
+                y=coin["liquidity"],
+                ax=coin["rsi"] - arrow_dx,
+                ay=coin["liquidity"],
+                showarrow=True,
+                arrowhead=2,
+                arrowsize=1.5,
+                arrowwidth=2,
+                arrowcolor="#4CAF50" if coin["accel"] > 0 else "#F44336",
+            )
+
+    fig.update_layout(
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 60, "r": 60, "t": 40, "b": 60},
+        height=height,
+        title={
+            "text": f"Signal Strength Scatter [{tf_label}] (size = signal, arrows = trajectory)",
+            "font": {"size": 14, "color": "#F6F8F7"},
+            "x": 0.5,
+        },
+        xaxis={
+            "title": {"text": f"RSI ({tf_label})", "font": {"size": 11, "color": "#F6F8F7"}},
+            "range": [0, 100],
+            "tickfont": {"size": 10, "color": "#F6F8F7"},
+            "showgrid": True,
+            "gridcolor": "rgba(246, 248, 247, 0.1)",
+        },
+        yaxis={
+            "title": {"text": "Liquidity (Vol/MCap)", "font": {"size": 11, "color": "#F6F8F7"}},
+            "range": [0, max(liq_vals) * 1.1] if liq_vals else [0, 1],
+            "tickfont": {"size": 10, "color": "#F6F8F7"},
+            "showgrid": True,
+            "gridcolor": "rgba(246, 248, 247, 0.1)",
+        },
+    )
+
+    return fig
+
+
+def build_coil_pressure_timeline(
+    coins: list[dict[str, Any]],
+    height: int = 450,
+    timeframe: str | None = None,
+    multi_tf_rsi: dict[str, dict] | None = None,
+) -> go.Figure | None:
+    """
+    Build Coil Pressure Timeline with small multiples.
+
+    Redesigned from Acceleration Quadrant to show:
+    - Only "coiled" coins (vol_ratio < 0.7, acceleration > 0)
+    - Small multiples grid with area charts
+    - Compression depth over 14 days
+    - "RELEASE!" annotation when volatility expands
+
+    Args:
+        coins: List of coin dicts with volatility data containing volatility_history
+        height: Chart height in pixels
+        timeframe: Selected timeframe (1h, 4h, 12h, 1d, 3d, 1w) or None for daily
+        multi_tf_rsi: Dict mapping coin_id -> {timeframe: {"rsi": float, "history": list}}
+
+    Returns:
+        Plotly Figure or None if no valid data
+    """
+    from plotly.subplots import make_subplots
+    from src.indicators import calculate_rsi_acceleration
+
+    tf_label = timeframe.upper() if timeframe else "Daily"
+
+    # Filter to "coiled" coins
+    coiled_coins = []
+    for coin in coins:
+        coin_id = coin.get("id")
+        vol = coin.get("volatility", {})
+
+        if not vol:
+            continue
+
+        vol_ratio = vol.get("ratio", 1.0)
+        vol_history = vol.get("volatility_history", [])
+
+        # Get RSI acceleration based on timeframe
+        rsi_accel = 0
+        if timeframe and multi_tf_rsi and coin_id in multi_tf_rsi:
+            tf_data = multi_tf_rsi[coin_id].get(timeframe)
+            if tf_data is not None and isinstance(tf_data, dict):
+                history = tf_data.get("history", [])
+                if len(history) >= 3:
+                    accel_result = calculate_rsi_acceleration(history)
+                    if accel_result:
+                        rsi_accel = accel_result.get("acceleration", 0)
+
+        # Fall back to daily acceleration
+        if rsi_accel == 0:
+            accel = coin.get("acceleration", {})
+            rsi_accel = accel.get("acceleration", 0) if accel else 0
+
+        # Coiled = compressed volatility + positive RSI acceleration
+        if vol_ratio < 0.85 and rsi_accel > 0:
+            # Detect release: was compressed, now expanding
+            is_releasing = False
+            if len(vol_history) >= 3:
+                recent_avg = sum(vol_history[-3:]) / 3
+                older_avg = sum(vol_history[:3]) / 3 if len(vol_history) >= 6 else recent_avg
+                if older_avg < 0.7 and (recent_avg - older_avg) > 0.05:
+                    is_releasing = True
+
+            coiled_coins.append({
+                "symbol": coin.get("symbol", "?"),
+                "vol_ratio": vol_ratio,
+                "vol_history": vol_history if vol_history else [vol_ratio] * 14,
+                "rsi_accel": rsi_accel,
+                "coil_days": sum(1 for v in vol_history if v < 0.7) if vol_history else 0,
+                "is_releasing": is_releasing,
+            })
+
+    if not coiled_coins:
+        # Return empty figure with message explaining criteria
+        fig = go.Figure()
+        fig.add_annotation(
+            x=0.5, y=0.6,
+            text="<b>No 'Coiled Spring' Coins Detected</b>",
+            showarrow=False,
+            font={"size": 16, "color": "#F6F8F7"},
+            xref="paper", yref="paper",
+        )
+        fig.add_annotation(
+            x=0.5, y=0.45,
+            text="Criteria: Volatility Ratio < 0.85 AND RSI Acceleration > 0",
+            showarrow=False,
+            font={"size": 12, "color": "#9E9E9E"},
+            xref="paper", yref="paper",
+        )
+        fig.add_annotation(
+            x=0.5, y=0.3,
+            text="This is actually useful info — no compressed springs ready to pop.",
+            showarrow=False,
+            font={"size": 11, "color": "#FF9800"},
+            xref="paper", yref="paper",
+        )
+        fig.update_layout(
+            paper_bgcolor="#4A4F5E",
+            plot_bgcolor="rgba(74, 79, 94, 0.3)",
+            margin={"l": 20, "r": 20, "t": 40, "b": 20},
+            height=height,
+            title={
+                "text": f"Coil Pressure Timeline [{tf_label}]",
+                "font": {"size": 14, "color": "#F6F8F7"},
+                "x": 0.5,
+            },
+        )
+        return fig
+
+    # Sort by coil intensity (lower vol_ratio = more coiled)
+    coiled_coins.sort(key=lambda c: c["vol_ratio"])
+
+    # Limit to 8 for readability
+    coiled_coins = coiled_coins[:8]
+
+    # Calculate grid dimensions
+    n_coins = len(coiled_coins)
+    cols = min(4, n_coins)
+    rows = (n_coins + cols - 1) // cols
+
+    # Create subplots
+    fig = make_subplots(
+        rows=rows, cols=cols,
+        subplot_titles=[c["symbol"] for c in coiled_coins],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.08,
+    )
+
+    for i, coin in enumerate(coiled_coins):
+        row = i // cols + 1
+        col = i % cols + 1
+
+        vol_hist = coin["vol_history"]
+        # If no history, use current ratio repeated
+        if not vol_hist or len(vol_hist) < 2:
+            vol_hist = [coin["vol_ratio"]] * 14
+        # Pad to 14 if shorter
+        while len(vol_hist) < 14:
+            vol_hist = [vol_hist[0]] + vol_hist
+
+        # Compression depth = how far below 1.3 (higher = more compressed)
+        # For ratio 0.77, pressure = 1.3 - 0.77 = 0.53
+        pressure = [max(0.05, 1.3 - v) for v in vol_hist[-14:]]  # Min 0.05 to always show something
+        days = list(range(1, len(pressure) + 1))
+
+        # Area fill color based on compression (more compressed = greener)
+        current_pressure = pressure[-1]
+        if current_pressure > 0.5:
+            fill_color = "rgba(76, 175, 80, 0.6)"
+            line_color = "#4CAF50"
+        else:
+            fill_color = "rgba(255, 152, 0, 0.5)"
+            line_color = "#FF9800"
+
+        fig.add_trace(
+            go.Scatter(
+                x=days,
+                y=pressure,
+                fill="tozeroy",
+                fillcolor=fill_color,
+                line={"color": line_color, "width": 3},
+                mode="lines",
+                showlegend=False,
+                hovertemplate=f"{coin['symbol']}<br>Day %{{x}}<br>Pressure: %{{y:.2f}}<extra></extra>",
+            ),
+            row=row, col=col,
+        )
+
+        # Add "RELEASE!" annotation if releasing
+        if coin["is_releasing"]:
+            fig.add_annotation(
+                x=10, y=0.6,
+                text="RELEASE!",
+                showarrow=False,
+                font={"size": 12, "color": "#FF5722", "family": "Arial Black"},
+                xref=f"x{i+1}" if i > 0 else "x",
+                yref=f"y{i+1}" if i > 0 else "y",
+            )
+
+        # Add coil days and current ratio annotation at bottom
+        fig.add_annotation(
+            x=7, y=0.1,
+            text=f"{coin['coil_days']}d coiled | ratio: {coin['vol_ratio']:.2f}",
+            showarrow=False,
+            font={"size": 10, "color": "#F6F8F7"},
+            xref=f"x{i+1}" if i > 0 else "x",
+            yref=f"y{i+1}" if i > 0 else "y",
+            xanchor="center",
+        )
+
+    # Update layout
+    fig.update_layout(
+        paper_bgcolor="#4A4F5E",
+        plot_bgcolor="rgba(74, 79, 94, 0.3)",
+        margin={"l": 40, "r": 20, "t": 60, "b": 30},
+        height=height,
+        title={
+            "text": f"Coil Pressure Timeline [{tf_label}] (Compressed Vol + Rising RSI)",
+            "font": {"size": 14, "color": "#F6F8F7"},
+            "x": 0.5,
+        },
+        showlegend=False,
+    )
+
+    # Update all subplot axes using update_xaxes/update_yaxes (more reliable)
+    fig.update_xaxes(
+        showticklabels=False,
+        showgrid=False,
+        zeroline=False,
+        range=[0, 15],
+    )
+    fig.update_yaxes(
+        showticklabels=False,
+        showgrid=False,
+        zeroline=False,
+        range=[0, 1.0],  # Pressure values up to ~0.6 typical
+    )
+
+    # Update subplot title fonts
+    for annotation in fig.layout.annotations:
+        if annotation.text in [c["symbol"] for c in coiled_coins]:
+            annotation.font = {"size": 11, "color": "#F6F8F7"}
+
+    return fig

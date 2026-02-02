@@ -374,11 +374,15 @@ def detect_volatility_regime(
     else:
         regime = "normal"
 
+    # Compute ratio history (each point's ATR / overall avg) for coil timeline
+    ratio_history = [round(v / avg_atr, 4) if avg_atr > 0 else 1.0 for v in atr_values[-14:]]
+
     return {
         "current_atr": round(current_atr, 4),
         "avg_atr": round(avg_atr, 4),
         "ratio": round(ratio, 4),
         "regime": regime,
+        "volatility_history": ratio_history,  # Last 14 days as ratio values for coil timeline
     }
 
 
@@ -846,6 +850,97 @@ def calculate_price_acceleration(price_history: list[float]) -> dict | None:
     }
 
 
+def calculate_obv(prices: list[float], volumes: list[float]) -> list[float]:
+    """
+    Calculate On-Balance Volume (OBV) series.
+
+    OBV is a cumulative indicator that adds volume on up-closes and subtracts
+    volume on down-closes. It serves as a proxy for order flow / accumulation.
+
+    Args:
+        prices: List of closing prices (oldest to newest)
+        volumes: List of volumes corresponding to each price (same length)
+
+    Returns:
+        List of OBV values (same length as input, first value is 0)
+        Returns empty list if inputs are invalid or mismatched.
+    """
+    if len(prices) != len(volumes) or len(prices) < 2:
+        return []
+
+    obv = [0.0]
+    for i in range(1, len(prices)):
+        if prices[i] > prices[i - 1]:
+            # Up day: add volume
+            obv.append(obv[-1] + volumes[i])
+        elif prices[i] < prices[i - 1]:
+            # Down day: subtract volume
+            obv.append(obv[-1] - volumes[i])
+        else:
+            # Unchanged: OBV stays the same
+            obv.append(obv[-1])
+
+    return obv
+
+
+def calculate_obv_acceleration(obv_history: list[float]) -> dict | None:
+    """
+    Calculate OBV velocity and acceleration (second derivative).
+
+    This measures whether volume conviction is building or waning.
+    Positive acceleration = volume increasingly flowing in on up days.
+    Negative acceleration = volume increasingly flowing in on down days.
+
+    Args:
+        obv_history: List of OBV values over time (oldest to newest, at least 3 values)
+
+    Returns:
+        Dict with keys:
+        - velocity: OBV change rate (current - previous), normalized
+        - acceleration: Change in velocity (current velocity - previous velocity)
+        - interpretation: "accumulating" | "distributing" | "stable"
+        Returns None if insufficient data (< 3 values).
+    """
+    if len(obv_history) < 3:
+        return None
+
+    # Calculate raw velocity (change in OBV)
+    velocity = obv_history[-1] - obv_history[-2]
+    prev_velocity = obv_history[-2] - obv_history[-3]
+    acceleration = velocity - prev_velocity
+
+    # Normalize velocity to a percentage of recent OBV range for comparability
+    # Use the range over the last 10 periods (or available data) as denominator
+    lookback = min(10, len(obv_history))
+    recent_obv = obv_history[-lookback:]
+    obv_range = max(recent_obv) - min(recent_obv)
+
+    if obv_range > 0:
+        normalized_velocity = (velocity / obv_range) * 100
+        normalized_acceleration = (acceleration / obv_range) * 100
+    else:
+        normalized_velocity = 0.0
+        normalized_acceleration = 0.0
+
+    # Determine interpretation based on normalized values
+    if abs(normalized_velocity) < 2 and abs(normalized_acceleration) < 2:
+        interpretation = "stable"
+    elif normalized_acceleration > 2:
+        interpretation = "accumulating"  # Volume conviction building on up days
+    elif normalized_acceleration < -2:
+        interpretation = "distributing"  # Volume conviction building on down days
+    else:
+        interpretation = "stable"
+
+    return {
+        "velocity": round(normalized_velocity, 4),
+        "acceleration": round(normalized_acceleration, 4),
+        "raw_velocity": velocity,
+        "raw_acceleration": acceleration,
+        "interpretation": interpretation,
+    }
+
+
 def calculate_signal_persistence(
     rsi_history: list[float], price_history: list[float], threshold: float = 0.5
 ) -> dict | None:
@@ -938,6 +1033,7 @@ def calculate_signal_persistence(
         "persistence": persistence,
         "avg_gap": round(avg_gap, 4),
         "interpretation": interpretation,
+        "gap_history": [round(g, 4) for g in gap_scores],  # 5-period history for maturity ladder
     }
 
 
